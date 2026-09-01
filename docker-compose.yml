@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: geladeira-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: geladeira
+      POSTGRES_PASSWORD: geladeira
+      POSTGRES_DB: geladeira_virtual
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geladeira"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+    container_name: geladeira-api
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    ports:
+      - "3333:3333"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+volumes:
+  db_data:
