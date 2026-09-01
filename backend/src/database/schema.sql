@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
 -- Perfil (respostas do wizard) — um por usuário
 CREATE TABLE IF NOT EXISTS perfis (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  usuario_id UUID UNIQUE NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
   nome VARCHAR(255),
   idade INT,
   sexo VARCHAR(30),
