@@ -1,4 +1,5 @@
 import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const BASE_URL = "http://192.168.4.43:3333";
 
@@ -14,4 +15,23 @@ export async function login(email: string, senha: string) {
 export async function register(email: string, senha: string) {
   const response = await api.post("/auth/register", { email, senha });
   return response.data.token as string;
+}
+
+export async function saveProfile(dados: {
+  nome: string;
+  idade: number;
+  sexo: string;
+  alturaCm: number;
+  objetivo: string;
+  praticaExercicio: boolean;
+  intolerancias?: string;
+  vegano: boolean;
+  preferenciaPreparo: string;
+  tempoDisponivel: string;
+}) {
+  const token = await AsyncStorage.getItem("@geladeira:token");
+  const response = await api.post("/profile", dados, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
 }
