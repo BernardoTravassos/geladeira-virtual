@@ -12,7 +12,8 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "../theme/colors";
-import { login, register, getProfile } from "../services/api";
+import { login, register, getProfile, descreverFalhaDeRede } from "../services/api";
+import CampoSenha from "../components/CampoSenha";
 
 export default function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
@@ -44,9 +45,16 @@ export default function LoginScreen({ navigation }: any) {
         navigation.replace("Wizard");
       }
     } catch (erro: any) {
+      const falhaDeRede = descreverFalhaDeRede(erro);
       const mensagem =
         erro?.response?.data?.error || "Não foi possível entrar. Tente de novo.";
-      Alert.alert("Erro", mensagem);
+
+      // __DEV__ é verdadeiro só rodando pelo Expo; num app publicado o
+      // detalhe técnico não aparece para o usuário.
+      Alert.alert(
+        "Erro",
+        __DEV__ && falhaDeRede ? `${mensagem}\n\n[diagnóstico] ${falhaDeRede}` : mensagem
+      );
     } finally {
       setCarregando(false);
     }
@@ -74,11 +82,9 @@ export default function LoginScreen({ navigation }: any) {
           value={email}
           onChangeText={setEmail}
         />
-        <TextInput
-          style={styles.input}
+        <CampoSenha
           placeholder="Senha"
-          placeholderTextColor={colors.textSecondary}
-          secureTextEntry
+          textContentType="password"
           value={senha}
           onChangeText={setSenha}
         />
@@ -98,6 +104,13 @@ export default function LoginScreen({ navigation }: any) {
             {modoCadastro ? "Já tenho conta — entrar" : "Não tenho conta — cadastrar"}
           </Text>
         </TouchableOpacity>
+
+        {/* Só faz sentido para quem já tem conta — no modo cadastro, fica oculto. */}
+        {!modoCadastro && (
+          <TouchableOpacity onPress={() => navigation.navigate("EsqueciSenha")}>
+            <Text style={styles.linkDiscreto}>Esqueci minha senha</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -150,5 +163,11 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 13,
     marginTop: 10,
+  },
+  linkDiscreto: {
+    textAlign: "center",
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
   },
 });

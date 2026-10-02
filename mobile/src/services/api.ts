@@ -3,8 +3,28 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const BASE_URL = "http://192.168.4.43:3333";
 
+/** Exportado para as telas conseguirem mostrar o endereço em uso ao diagnosticar. */
+export const ENDERECO_API = BASE_URL;
+
+/**
+ * Descreve uma falha de REDE (quando não houve resposta nenhuma do servidor).
+ * Devolve null quando o servidor respondeu — aí o problema não é de rede.
+ *
+ * Serve para o app parar de dizer só "não foi possível" e passar a dizer o
+ * que de fato aconteceu: tempo esgotado, conexão recusada, endereço errado.
+ */
+export function descreverFalhaDeRede(erro: any): string | null {
+  if (erro?.response) return null;
+  const codigo = erro?.code ?? "SEM_CODIGO";
+  return `${codigo} ao chamar ${BASE_URL}`;
+}
+
 export const api = axios.create({
   baseURL: BASE_URL,
+  // Sem isto o axios espera PARA SEMPRE. Se o servidor não responde (rede
+  // errada, porta bloqueada, API fora), o app fica girando sem fim e sem
+  // mensagem. 15 segundos transforma o travamento em um erro visível.
+  timeout: 15000,
 });
 
 export async function login(email: string, senha: string) {
@@ -82,4 +102,28 @@ export async function gerarCardapio(foto?: { uri: string; nome: string; tipo: st
  */
 export function ehLimiteAtingido(erro: any) {
   return erro?.response?.status === 429;
+}
+
+/**
+ * Passo 1 da recuperação: pede o envio de um código de 6 dígitos por e-mail.
+ *
+ * ⚠️ Contrato de segurança: a API responde SEMPRE 200, exista ou não uma conta
+ * com esse e-mail. Se respondesse 404 para e-mail inexistente, qualquer pessoa
+ * poderia descobrir quem tem conta no app testando endereços — é o que se
+ * chama de "enumeração de contas". Por isso a tela mostra a mesma mensagem nos
+ * dois casos.
+ */
+export async function solicitarCodigoSenha(email: string) {
+  await api.post("/auth/forgot-password", { email });
+}
+
+/**
+ * Passo 2: troca o código pela nova senha.
+ *
+ * Erros esperados:
+ *   400 → código errado, expirado ou já usado
+ *   429 → tentativas demais
+ */
+export async function redefinirSenha(email: string, codigo: string, novaSenha: string) {
+  await api.post("/auth/reset-password", { email, codigo, novaSenha });
 }

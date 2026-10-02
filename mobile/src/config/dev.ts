@@ -15,4 +15,13 @@ export const DEV = {
    *          (limite diário atingido).
    */
   FORCAR_PAYWALL: true,
+
+  /**
+   * Finge o backend de recuperação de senha, para você percorrer as telas
+   * antes de os endpoints existirem (eles nascem na Fase 2, em C#).
+   *
+   *  true  → "Enviar código" sempre dá certo e o código 000000 é aceito.
+   *  false → chama a API de verdade.
+   */
+  SIMULAR_RECUPERACAO_SENHA: false,
 };
