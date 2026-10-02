@@ -4,43 +4,93 @@
 
 ```
 geladeira-virtual/
-├── backend/     → API em Node.js + TypeScript + Express + PostgreSQL
-├── mobile/      → App em React Native (Expo) + TypeScript
+├── backend-dotnet/  → API em C# (.NET 10) + ASP.NET Core + EF Core + PostgreSQL
+├── mobile/          → App em React Native (Expo) + TypeScript
 └── docker-compose.yml
 ```
 
 ## Como rodar o backend + banco de dados
 
-1. Copie o arquivo de variáveis de ambiente:
+1. Copie o arquivo de variáveis de ambiente e preencha os segredos:
    ```
-   cp backend/.env.example backend/.env
+   cp backend-dotnet/.env.example backend-dotnet/.env
    ```
+   Gere o `JWT_SECRET` com:
+   ```
+   openssl rand -hex 64
+   ```
+   A API **se recusa a subir** com o segredo ausente, curto demais ou igual ao
+   valor de exemplo — e diz por escrito o que está faltando.
+
 2. Suba os containers (API + PostgreSQL):
    ```
-   docker compose up --build
+   docker compose up -d --build
    ```
-3. Confirme que está no ar acessando: `http://localhost:3333/health`
-4. Rode o schema do banco (cria as tabelas) — com o container do banco no ar:
+
+3. Aplique as migrations (cria ou atualiza as tabelas):
    ```
-   docker exec -i geladeira-db psql -U geladeira -d geladeira_virtual < backend/src/database/schema.sql
+   docker compose run --rm api --migrar
    ```
+
+4. Confirme que está no ar: `http://localhost:3333/health`
+
+> ⚠️ Depois de editar o `.env`, recrie o container — o `env_file` só é lido na
+> criação, não no restart:
+> ```
+> docker compose up -d --force-recreate api
+> ```
+
+## Comandos de diagnóstico
+
+```
+docker compose run --rm api --verificar-banco          # o que o EF consegue ler
+docker compose run --rm api --migrar                   # aplica migrations pendentes
+docker compose run --rm api --testar-email seu@email   # prova o envio de e-mail
+docker compose logs -f api                             # log em tempo real
+```
 
 ## Como rodar o app mobile
 
-1. Entre na pasta do app:
+1. Entre na pasta do app e instale:
    ```
-   cd mobile
-   npm install
+   cd mobile && npm install
    ```
-2. Inicie o Expo:
+2. Ajuste o endereço da API em `mobile/src/services/api.ts` (`BASE_URL`) para o
+   IP desta máquina na sua rede — `hostname -I` mostra qual é.
+3. Inicie o Expo:
    ```
    npm start
    ```
-3. Escaneie o QR code com o app **Expo Go** no seu celular (Android ou iPhone) para ver o app rodando de verdade no seu aparelho.
+4. Escaneie o QR code com o app **Expo Go**.
 
-## Próximos passos (código)
+> Se o celular não conectar, verifique o firewall: `sudo ufw allow 3333/tcp`.
+> O ufw descarta pacotes em silêncio, e o sintoma é o app esperando sem erro.
 
-- [ ] Implementar `POST /auth/register` e `POST /auth/login` (backend/src/routes/auth.routes.ts)
-- [ ] Implementar `POST /profile` (backend/src/routes/profile.routes.ts)
-- [ ] Implementar `POST /meals/generate`, integrando com a API da IA (backend/src/routes/meal.routes.ts)
-- [ ] Construir as telas de verdade (login, wizard, home) — ver mockup visual enviado no chat
+### Chaves de desenvolvimento
+
+`mobile/src/config/dev.ts` tem chaves para testar telas difíceis de provocar.
+**Todas devem ficar `false` num build de verdade.**
+
+## Banco de dados
+
+O schema é gerenciado por **migrations do EF Core** (`backend-dotnet/Dados/Migrations/`).
+Para mudar o banco, altere as entidades e gere uma migration:
+
+```
+cd backend-dotnet
+DATABASE_URL=postgresql://geladeira:geladeira@localhost:5433/geladeira_virtual \
+JWT_SECRET=$(openssl rand -hex 64) \
+dotnet ef migrations add NomeDaMudanca --output-dir Dados/Migrations
+```
+
+Depois aplique com `docker compose run --rm api --migrar`.
+
+## O que já está pronto
+
+- [x] `POST /auth/register` e `POST /auth/login`
+- [x] `POST /auth/forgot-password` e `POST /auth/reset-password` (código por e-mail)
+- [x] `GET /profile` e `POST /profile`
+- [x] Autenticação JWT com invalidação de sessão ao trocar a senha
+- [x] Limite de tentativas, validação de entrada, normalização de e-mail
+- [ ] `POST /meals/generate` — integrar com a API da Anthropic
+- [ ] Limite diário do plano gratuito + integração de assinatura nas lojas

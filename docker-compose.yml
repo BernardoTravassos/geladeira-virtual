@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16-alpine
@@ -21,35 +19,15 @@ services:
 
   api:
     build:
-      context: ./backend
+      context: ./backend-dotnet
     container_name: geladeira-api
     restart: unless-stopped
     env_file:
-      - ./backend/.env
-    ports:
-      - "3333:3333"
-    depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
-
-  # Backend em C# (.NET), construído em paralelo ao backend TypeScript durante
-  # a migração. Os dois falam com o MESMO banco e leem o MESMO backend/.env,
-  # então existe uma só fonte de segredos. Na Fase 5 este assume a porta 3333
-  # e o serviço `api` acima é removido.
-  api-dotnet:
-    build:
-      context: ./backend-dotnet
-    container_name: geladeira-api-dotnet
-    restart: unless-stopped
-    env_file:
-      - ./backend/.env
+      - ./backend-dotnet/.env
     environment:
       ASPNETCORE_URLS: http://+:8080
     ports:
-      - "3334:8080"
+      - "3333:8080"
     depends_on:
       db:
         condition: service_healthy

@@ -16,6 +16,8 @@ public partial class GeladeiraContext : DbContext
 
     public virtual DbSet<Consulta> Consultas { get; set; }
 
+    public virtual DbSet<CodigoRecuperacao> CodigosRecuperacao { get; set; }
+
     public virtual DbSet<Perfil> Perfis { get; set; }
 
     public virtual DbSet<Usuario> Usuarios { get; set; }
@@ -137,6 +139,45 @@ public partial class GeladeiraContext : DbContext
             entity.Property(e => e.SenhaHash)
                 .HasMaxLength(255)
                 .HasColumnName("senha_hash");
+            entity.Property(e => e.TokenVersao)
+                .HasDefaultValue(1)
+                .HasColumnName("token_versao");
+        });
+
+        modelBuilder.Entity<CodigoRecuperacao>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("codigos_recuperacao_pkey");
+
+            entity.ToTable("codigos_recuperacao");
+
+            // Busca sempre por usuário, para achar o código mais recente dele.
+            entity.HasIndex(e => e.UsuarioId, "ix_codigos_recuperacao_usuario_id");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.UsuarioId).HasColumnName("usuario_id");
+            entity.Property(e => e.CodigoHash)
+                .HasMaxLength(255)
+                .HasColumnName("codigo_hash");
+            entity.Property(e => e.ExpiraEm)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("expira_em");
+            entity.Property(e => e.UsadoEm)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("usado_em");
+            entity.Property(e => e.Tentativas)
+                .HasDefaultValue(0)
+                .HasColumnName("tentativas");
+            entity.Property(e => e.CriadoEm)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("criado_em");
+
+            entity.HasOne(d => d.Usuario).WithMany(p => p.CodigosRecuperacao)
+                .HasForeignKey(d => d.UsuarioId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("codigos_recuperacao_usuario_id_fkey");
         });
 
         OnModelCreatingPartial(modelBuilder);

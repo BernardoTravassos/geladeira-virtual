@@ -17,6 +17,20 @@ public sealed class ConfiguracaoApp
     /// <summary>Origens permitidas para CORS. Vazio = nenhuma (o app nativo não é afetado).</summary>
     public string[] CorsOrigins { get; init; } = [];
 
+    /// <summary>
+    /// Nulo quando SMTP_HOST não está definido: o envio de e-mail fica
+    /// desligado e a API sobe normalmente. Quem depende dele (recuperação de
+    /// senha) falha com mensagem clara, em vez de a API inteira se recusar a
+    /// subir por causa de um recurso que ainda não está em uso.
+    /// </summary>
+    public ConfiguracaoEmail? Email { get; init; }
+
+    /// <summary>
+    /// Em desenvolvimento, o motivo do erro vai junto na resposta, para você
+    /// ver no app sem abrir o log do container. Em produção, nunca.
+    /// </summary>
+    public bool MostrarErros { get; init; }
+
     // Valores que já vieram nos arquivos de exemplo do repositório. Se algum
     // deles chegar aqui como valor real, não é segredo — está publicado.
     private static readonly string[] Placeholders =
@@ -34,7 +48,45 @@ public sealed class ConfiguracaoApp
         AnthropicApiKey = config["ANTHROPIC_API_KEY"],
         CorsOrigins = (config["CORS_ORIGINS"] ?? "")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+        Email = CarregarEmail(config),
+        MostrarErros = !string.Equals(
+            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+            "Production", StringComparison.OrdinalIgnoreCase),
     };
+
+    private static ConfiguracaoEmail? CarregarEmail(IConfiguration config)
+    {
+        var host = config["SMTP_HOST"]?.Trim();
+        if (string.IsNullOrEmpty(host))
+        {
+            return null; // recurso desligado
+        }
+
+        var porta = int.TryParse(config["SMTP_PORT"]?.Trim(), out var valor) ? valor : 587;
+
+        var remetente = config["EMAIL_REMETENTE"]?.Trim();
+        var usuario = config["SMTP_USER"]?.Trim();
+        var senha = config["SMTP_PASSWORD"]?.Trim();
+
+        // Configuração pela metade — o caso comum é o SMTP_HOST já estar no
+        // .env e a chave de API ainda não ter sido colada — DESLIGA o e-mail,
+        // mas não impede a API de subir: é recurso que ainda não está em uso.
+        // O aviso no startup (Program.cs) diz o que está faltando.
+        if (string.IsNullOrEmpty(remetente)
+            || (!string.IsNullOrEmpty(usuario) && string.IsNullOrEmpty(senha)))
+        {
+            return null;
+        }
+
+        return new ConfiguracaoEmail
+        {
+            Host = host,
+            Porta = porta,
+            Usuario = usuario,
+            Senha = senha,
+            Remetente = remetente,
+        };
+    }
 
     private static string LerObrigatoria(IConfiguration config, string nome)
     {
