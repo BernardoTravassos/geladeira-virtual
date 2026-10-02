@@ -1,24 +1,83 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "../theme/colors";
+import { getProfile } from "../services/api";
+import { calcularMetas, saudacao, PerfilApi } from "../utils/nutricao";
 
-export default function HomeScreen() {
-  const caloriasConsumidas = 1240;
-  const metaCalorias = 1800;
-  const progresso = Math.min(caloriasConsumidas / metaCalorias, 1);
+type Refeicao = {
+  chave: string;
+  nome: string;
+  horario: string;
+  icone: keyof typeof Feather.glyphMap;
+  fracaoDaMeta: number; // quanto da meta diária essa refeição representa
+  feita: boolean;
+  caloriasConsumidas?: number;
+};
+
+// TODO: quando o backend registrar as refeições do dia, isto deve vir da API.
+// Por enquanto é dado de exemplo: só o café da manhã aparece como feito.
+const refeicoesDoDia: Refeicao[] = [
+  { chave: "cafe", nome: "Café da manhã", horario: "07:30", icone: "coffee", fracaoDaMeta: 0.25, feita: true, caloriasConsumidas: 380 },
+  { chave: "almoco", nome: "Almoço", horario: "12:30", icone: "sun", fracaoDaMeta: 0.35, feita: false },
+  { chave: "lanche", nome: "Lanche", horario: "16:00", icone: "zap", fracaoDaMeta: 0.1, feita: false },
+  { chave: "jantar", nome: "Jantar", horario: "19:30", icone: "moon", fracaoDaMeta: 0.3, feita: false },
+];
+
+// TODO: virá da tabela "consultas". Dado de exemplo por enquanto.
+const consultasRecentes = [
+  { id: "1", titulo: "Frango grelhado com legumes", quando: "Ontem", calorias: 520 },
+  { id: "2", titulo: "Omelete de espinafre", quando: "Anteontem", calorias: 340 },
+];
+
+const cardapioGeradoHoje = false; // vira true quando existir uma consulta de hoje
+const METAS_COPOS = 8;
+
+export default function HomeScreen({ navigation }: any) {
+  const [perfil, setPerfil] = useState<PerfilApi | null>(null);
+  const [copos, setCopos] = useState(0);
+
+  useEffect(() => {
+    getProfile()
+      .then(setPerfil)
+      .catch(() => {}); // sem rede/API: a tela ainda abre com valores padrão
+  }, []);
+
+  async function handleLogout() {
+    await AsyncStorage.multiRemove(["@geladeira:token", "@geladeira:wizardDone"]);
+    navigation.replace("Login");
+  }
+
+  const metas = calcularMetas(perfil);
+  const consumidas = refeicoesDoDia.reduce((soma, r) => soma + (r.caloriasConsumidas || 0), 0);
+  const progressoCalorias = Math.min(consumidas / metas.calorias, 1);
+  const restantes = Math.max(metas.calorias - consumidas, 0);
+  const primeiroNome = perfil?.nome?.trim().split(" ")[0];
+
+  // Macros consumidos estimados na mesma proporção das calorias (até existir registro real).
+  const macros = [
+    { nome: "Proteína", meta: metas.proteina },
+    { nome: "Carboidrato", meta: metas.carboidrato },
+    { nome: "Gordura", meta: metas.gordura },
+  ].map((m) => ({ ...m, atual: Math.round(m.meta * progressoCalorias) }));
 
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.greetingSmall}>Boa tarde</Text>
-            <Text style={styles.greetingName}>Oi, Bernardo</Text>
+            <Text style={styles.greetingSmall}>{saudacao()}</Text>
+            <Text style={styles.greetingName}>{primeiroNome ? `Oi, ${primeiroNome}` : "Olá"}</Text>
           </View>
-          <TouchableOpacity style={styles.bellButton}>
-            <Feather name="bell" size={18} color={colors.primary} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.bellButton}>
+              <Feather name="bell" size={18} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.bellButton} onPress={handleLogout}>
+              <Feather name="log-out" size={18} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <TouchableOpacity style={styles.ctaCard} activeOpacity={0.85}>
@@ -31,38 +90,125 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
 
-        <View style={styles.row}>
-          <View style={[styles.card, styles.calorieCard]}>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${progresso * 100}%` }]} />
-            </View>
-            <Text style={styles.calorieValue}>{caloriasConsumidas} kcal</Text>
-            <Text style={styles.calorieGoal}>meta {metaCalorias}</Text>
+        {/* Calorias + macros */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.sectionLabel}>Hoje</Text>
+            <Text style={styles.calorieGoal}>meta {metas.calorias} kcal</Text>
           </View>
+          <Text style={styles.calorieValue}>
+            {consumidas} <Text style={styles.calorieUnit}>kcal consumidas</Text>
+          </Text>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${progressoCalorias * 100}%` }]} />
+          </View>
+          <Text style={styles.calorieRemaining}>Restam {restantes} kcal</Text>
 
-          <View style={[styles.card, styles.mealCard]}>
-            <Text style={styles.mealLabel}>Cardápio de hoje</Text>
-            <Text style={styles.mealName}>Frango grelhado com legumes</Text>
-            <View style={styles.mealLink}>
-              <Text style={styles.mealLinkText}>Ver receita</Text>
-              <Feather name="chevron-right" size={12} color={colors.primary} />
-            </View>
+          <View style={styles.macroRow}>
+            {macros.map((m) => (
+              <View key={m.nome} style={styles.macroItem}>
+                <Text style={styles.macroName}>{m.nome}</Text>
+                <View style={styles.macroTrack}>
+                  <View
+                    style={[
+                      styles.macroFill,
+                      { width: `${m.meta ? Math.min(m.atual / m.meta, 1) * 100 : 0}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.macroValue}>
+                  {m.atual}/{m.meta} g
+                </Text>
+              </View>
+            ))}
           </View>
         </View>
 
-        <View style={styles.quickRow}>
-          <TouchableOpacity style={styles.quickItem}>
-            <Feather name="clock" size={16} color={colors.textSecondary} />
-            <Text style={styles.quickLabel}>Histórico</Text>
+        {/* Cardápio de hoje */}
+        {cardapioGeradoHoje ? null : (
+          <View style={styles.emptyCard}>
+            <Feather name="camera" size={22} color={colors.primary} />
+            <Text style={styles.emptyTitle}>Seu cardápio de hoje ainda não foi gerado</Text>
+            <Text style={styles.emptyText}>
+              Tire uma foto da geladeira e sugerimos refeições com o que você já tem em casa.
+            </Text>
+          </View>
+        )}
+
+        {/* Refeições do dia */}
+        <Text style={styles.sectionTitle}>Refeições do dia</Text>
+        <View style={styles.card}>
+          {refeicoesDoDia.map((r, i) => (
+            <View
+              key={r.chave}
+              style={[styles.mealRow, i < refeicoesDoDia.length - 1 && styles.mealRowDivider]}
+            >
+              <View style={styles.mealIcon}>
+                <Feather name={r.icone} size={16} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.mealRowName}>{r.nome}</Text>
+                <Text style={styles.mealRowInfo}>
+                  {r.horario} · ~{Math.round(metas.calorias * r.fracaoDaMeta)} kcal
+                </Text>
+              </View>
+              <View style={[styles.chip, r.feita ? styles.chipDone : styles.chipPending]}>
+                <Text style={[styles.chipText, r.feita ? styles.chipTextDone : styles.chipTextPending]}>
+                  {r.feita ? "Feita" : "Pendente"}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* Hidratação */}
+        <View style={[styles.card, styles.waterCard]}>
+          <View style={styles.mealIcon}>
+            <Feather name="droplet" size={16} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.mealRowName}>Hidratação</Text>
+            <Text style={styles.mealRowInfo}>
+              {copos} de {METAS_COPOS} copos
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.waterButton}
+            onPress={() => setCopos((c) => Math.max(c - 1, 0))}
+          >
+            <Feather name="minus" size={16} color={colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.quickItem}>
-            <Feather name="heart" size={16} color={colors.textSecondary} />
-            <Text style={styles.quickLabel}>Favoritos</Text>
+          <TouchableOpacity
+            style={[styles.waterButton, styles.waterButtonAdd]}
+            onPress={() => setCopos((c) => Math.min(c + 1, METAS_COPOS))}
+          >
+            <Feather name="plus" size={16} color={colors.background} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.quickItem}>
-            <Feather name="user" size={16} color={colors.textSecondary} />
-            <Text style={styles.quickLabel}>Perfil</Text>
-          </TouchableOpacity>
+        </View>
+
+        {/* Consultas recentes */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Consultas recentes</Text>
+          <Text style={styles.sectionLink}>Ver histórico</Text>
+        </View>
+        <View style={styles.card}>
+          {consultasRecentes.map((c, i) => (
+            <View
+              key={c.id}
+              style={[styles.mealRow, i < consultasRecentes.length - 1 && styles.mealRowDivider]}
+            >
+              <View style={styles.mealIcon}>
+                <Feather name="clock" size={16} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.mealRowName}>{c.titulo}</Text>
+                <Text style={styles.mealRowInfo}>
+                  {c.quando} · {c.calorias} kcal
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+            </View>
+          ))}
         </View>
       </ScrollView>
 
@@ -79,8 +225,9 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { padding: 20, paddingBottom: 100, gap: 14 },
+  scrollContent: { padding: 20, paddingTop: 48, paddingBottom: 100, gap: 14 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  headerActions: { flexDirection: "row", gap: 8 },
   greetingSmall: { fontSize: 12, color: colors.textSecondary },
   greetingName: { fontSize: 18, fontWeight: "700", color: colors.textPrimary, marginTop: 2 },
   bellButton: {
@@ -109,42 +256,88 @@ const styles = StyleSheet.create({
   },
   ctaTitle: { color: colors.background, fontWeight: "600", fontSize: 14 },
   ctaSubtitle: { color: "#CFE6D8", fontSize: 12, marginTop: 2 },
-  row: { flexDirection: "row", gap: 10 },
   card: {
-    flex: 1,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 16,
     padding: 14,
   },
-  calorieCard: { alignItems: "center", justifyContent: "center" },
+  cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  sectionLabel: { fontSize: 11, color: colors.textSecondary, fontWeight: "600" },
+  calorieGoal: { fontSize: 11, color: colors.textSecondary },
+  calorieValue: { fontSize: 22, fontWeight: "700", color: colors.textPrimary, marginTop: 6 },
+  calorieUnit: { fontSize: 12, fontWeight: "400", color: colors.textSecondary },
   progressTrack: {
     width: "100%",
-    height: 6,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.border,
+    overflow: "hidden",
+    marginTop: 10,
+  },
+  progressFill: { height: "100%", backgroundColor: colors.primary, borderRadius: 4 },
+  calorieRemaining: { fontSize: 11, color: colors.textSecondary, marginTop: 6 },
+  macroRow: { flexDirection: "row", gap: 12, marginTop: 16 },
+  macroItem: { flex: 1 },
+  macroName: { fontSize: 10, color: colors.textSecondary, fontWeight: "600", marginBottom: 6 },
+  macroTrack: {
+    height: 5,
     borderRadius: 3,
     backgroundColor: colors.border,
     overflow: "hidden",
   },
-  progressFill: { height: "100%", backgroundColor: colors.primary, borderRadius: 3 },
-  calorieValue: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginTop: 10 },
-  calorieGoal: { fontSize: 10, color: colors.textSecondary, marginTop: 2 },
-  mealCard: { justifyContent: "center" },
-  mealLabel: { fontSize: 10, color: colors.textSecondary, fontWeight: "600", marginBottom: 6 },
-  mealName: { fontSize: 14, fontWeight: "600", color: colors.textPrimary },
-  mealLink: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 10 },
-  mealLinkText: { fontSize: 11, color: colors.primary, fontWeight: "600" },
-  quickRow: { flexDirection: "row", gap: 8 },
-  quickItem: {
-    flex: 1,
+  macroFill: { height: "100%", backgroundColor: colors.primaryLight, borderRadius: 3 },
+  macroValue: { fontSize: 11, color: colors.textPrimary, marginTop: 5, fontWeight: "600" },
+  emptyCard: {
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: colors.primaryLight,
+    backgroundColor: "#F3F8EE",
+    borderRadius: 16,
+    padding: 16,
+    alignItems: "center",
+    gap: 6,
+  },
+  emptyTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, textAlign: "center" },
+  emptyText: { fontSize: 12, color: colors.textSecondary, textAlign: "center", lineHeight: 17 },
+  sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginTop: 4 },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  sectionLink: { fontSize: 11, color: colors.primary, fontWeight: "600" },
+  mealRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
+  mealRowDivider: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  mealIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#EAF3E4",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mealRowName: { fontSize: 13, fontWeight: "600", color: colors.textPrimary },
+  mealRowInfo: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
+  chip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  chipDone: { backgroundColor: "#EAF3E4" },
+  chipPending: { backgroundColor: "#F1EFE6" },
+  chipText: { fontSize: 10, fontWeight: "600" },
+  chipTextDone: { color: colors.primary },
+  chipTextPending: { color: colors.textSecondary },
+  waterCard: { flexDirection: "row", alignItems: "center", gap: 10 },
+  waterButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
-    paddingVertical: 12,
     alignItems: "center",
-    gap: 4,
+    justifyContent: "center",
   },
-  quickLabel: { fontSize: 10, color: colors.textSecondary },
+  waterButtonAdd: { backgroundColor: colors.primary, borderColor: colors.primary },
   bottomNav: {
     position: "absolute",
     bottom: 0,

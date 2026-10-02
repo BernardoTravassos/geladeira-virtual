@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "../theme/colors";
-import { login, register } from "../services/api";
+import { login, register, getProfile } from "../services/api";
 
 export default function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
@@ -33,7 +33,16 @@ export default function LoginScreen({ navigation }: any) {
         : await login(email, senha);
 
       await AsyncStorage.setItem("@geladeira:token", token);
-      navigation.replace("Wizard");
+
+      // Conta nova → perguntas. Conta existente com perfil → tela principal.
+      const perfil = modoCadastro ? null : await getProfile();
+      if (perfil) {
+        await AsyncStorage.setItem("@geladeira:wizardDone", "true");
+        navigation.replace("Home");
+      } else {
+        await AsyncStorage.removeItem("@geladeira:wizardDone");
+        navigation.replace("Wizard");
+      }
     } catch (erro: any) {
       const mensagem =
         erro?.response?.data?.error || "Não foi possível entrar. Tente de novo.";

@@ -22,6 +22,7 @@ export async function saveProfile(dados: {
   idade: number;
   sexo: string;
   alturaCm: number;
+  pesoKg: number;
   objetivo: string;
   praticaExercicio: boolean;
   intolerancias?: string;
@@ -34,4 +35,18 @@ export async function saveProfile(dados: {
     headers: { Authorization: `Bearer ${token}` },
   });
   return response.data;
+}
+
+// Retorna o perfil do usuário logado, ou null se ele ainda não preencheu o wizard (404).
+export async function getProfile() {
+  const token = await AsyncStorage.getItem("@geladeira:token");
+  try {
+    const response = await api.get("/profile", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  } catch (erro: any) {
+    if (erro?.response?.status === 404) return null;
+    throw erro;
+  }
 }

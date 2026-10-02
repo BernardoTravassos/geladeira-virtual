@@ -27,6 +27,7 @@ const perguntas: Pergunta[] = [
   { chave: "idade", titulo: "Qual é a sua idade?", tipo: "numero", placeholder: "Ex: 28" },
   { chave: "sexo", titulo: "Qual é o seu sexo?", tipo: "selecao", opcoes: ["Masculino", "Feminino", "Outro"] },
   { chave: "alturaCm", titulo: "Qual é a sua altura (cm)?", tipo: "numero", placeholder: "Ex: 170" },
+  { chave: "pesoKg", titulo: "Qual é o seu peso (kg)?", tipo: "numero", placeholder: "Ex: 70,5" },
   {
     chave: "objetivo",
     titulo: "Qual é o seu objetivo?",
@@ -84,6 +85,7 @@ export default function WizardScreen({ navigation }: any) {
         idade: Number(respostas.idade),
         sexo: respostas.sexo,
         alturaCm: Number(respostas.alturaCm),
+        pesoKg: Number(respostas.pesoKg.replace(",", ".")),
         objetivo: respostas.objetivo,
         praticaExercicio: respostas.praticaExercicio === "Sim",
         intolerancias: respostas.intolerancias || undefined,
@@ -147,7 +149,7 @@ export default function WizardScreen({ navigation }: any) {
             style={styles.input}
             placeholder={pergunta.placeholder}
             placeholderTextColor={colors.textSecondary}
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             value={respostaAtual}
             onChangeText={atualizarResposta}
           />

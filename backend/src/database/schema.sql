@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS perfis (
   idade INT,
   sexo VARCHAR(30),
   altura_cm INT,
+  peso_kg NUMERIC(5,1),
   objetivo VARCHAR(50),
   pratica_exercicio BOOLEAN,
   intolerancias TEXT,
@@ -38,3 +39,6 @@ CREATE TABLE IF NOT EXISTS assinaturas (
   plano VARCHAR(20) NOT NULL DEFAULT 'gratuito', -- 'gratuito' ou 'pago'
   atualizado_em TIMESTAMP NOT NULL DEFAULT now()
 );
+
+-- Migração para bancos já criados antes da coluna peso_kg existir
+ALTER TABLE perfis ADD COLUMN IF NOT EXISTS peso_kg NUMERIC(5,1);

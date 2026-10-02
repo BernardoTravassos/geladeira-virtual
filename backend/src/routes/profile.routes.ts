@@ -10,6 +10,7 @@ const perfilSchema = z.object({
   idade: z.number().int().positive(),
   sexo: z.string(),
   alturaCm: z.number().int().positive(),
+  pesoKg: z.number().positive(),
   objetivo: z.string(),
   praticaExercicio: z.boolean(),
   intolerancias: z.string().optional(),
@@ -43,13 +44,14 @@ profileRoutes.post("/", autenticar, async (req: any, res) => {
 
   await pool.query(
     `INSERT INTO perfis
-      (usuario_id, nome, idade, sexo, altura_cm, objetivo, pratica_exercicio, intolerancias, vegano, preferencia_preparo, tempo_disponivel, atualizado_em)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
+      (usuario_id, nome, idade, sexo, altura_cm, peso_kg, objetivo, pratica_exercicio, intolerancias, vegano, preferencia_preparo, tempo_disponivel, atualizado_em)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now())
      ON CONFLICT (usuario_id) DO UPDATE SET
        nome = EXCLUDED.nome,
        idade = EXCLUDED.idade,
        sexo = EXCLUDED.sexo,
        altura_cm = EXCLUDED.altura_cm,
+       peso_kg = EXCLUDED.peso_kg,
        objetivo = EXCLUDED.objetivo,
        pratica_exercicio = EXCLUDED.pratica_exercicio,
        intolerancias = EXCLUDED.intolerancias,
@@ -63,6 +65,7 @@ profileRoutes.post("/", autenticar, async (req: any, res) => {
       p.idade,
       p.sexo,
       p.alturaCm,
+      p.pesoKg,
       p.objetivo,
       p.praticaExercicio,
       p.intolerancias || null,
