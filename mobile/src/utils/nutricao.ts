@@ -6,6 +6,7 @@ export type PerfilApi = {
   peso_kg?: string | number | null; // NUMERIC do Postgres chega como string
   objetivo?: string;
   pratica_exercicio?: boolean;
+  tempo_disponivel?: string;
 };
 
 export type Metas = {

@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "../theme/colors";
-import { getProfile } from "../services/api";
+import { getProfile, gerarCardapio, ehLimiteAtingido } from "../services/api";
 import { calcularMetas, saudacao, PerfilApi } from "../utils/nutricao";
+import PaywallCard from "../components/PaywallCard";
+import { DEV } from "../config/dev";
 
 type Refeicao = {
   chave: string;
@@ -37,12 +39,45 @@ const METAS_COPOS = 8;
 export default function HomeScreen({ navigation }: any) {
   const [perfil, setPerfil] = useState<PerfilApi | null>(null);
   const [copos, setCopos] = useState(0);
+  const [paywallVisivel, setPaywallVisivel] = useState(false);
+  const [gerando, setGerando] = useState(false);
 
   useEffect(() => {
     getProfile()
       .then(setPerfil)
       .catch(() => {}); // sem rede/API: a tela ainda abre com valores padrão
   }, []);
+
+  async function handleGerarCardapio() {
+    // Atalho de desenvolvimento: ver o card sem depender do backend.
+    if (DEV.FORCAR_PAYWALL) {
+      setPaywallVisivel(true);
+      return;
+    }
+
+    if (gerando) return;
+    setGerando(true);
+    try {
+      // TODO Fase 4: abrir a câmera, enviar a foto e navegar para o cardápio.
+      await gerarCardapio();
+    } catch (erro: any) {
+      if (ehLimiteAtingido(erro)) {
+        setPaywallVisivel(true);
+      } else {
+        const mensagem =
+          erro?.response?.data?.error || "Não foi possível gerar o cardápio agora.";
+        Alert.alert("Erro", mensagem);
+      }
+    } finally {
+      setGerando(false);
+    }
+  }
+
+  function handleAssinar() {
+    // TODO: integrar a compra pela loja (Apple/Google). A tabela `assinaturas`
+    // só pode ser alterada por webhook servidor-a-servidor — nunca pelo app.
+    Alert.alert("Em breve", "A assinatura ainda não está integrada às lojas.");
+  }
 
   async function handleLogout() {
     await AsyncStorage.multiRemove(["@geladeira:token", "@geladeira:wizardDone"]);
@@ -80,7 +115,7 @@ export default function HomeScreen({ navigation }: any) {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.ctaCard} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.ctaCard} activeOpacity={0.85} onPress={handleGerarCardapio}>
           <View style={styles.ctaIcon}>
             <Feather name="camera" size={20} color={colors.background} />
           </View>
@@ -214,11 +249,24 @@ export default function HomeScreen({ navigation }: any) {
 
       <View style={styles.bottomNav}>
         <Feather name="home" size={20} color={colors.primary} />
-        <TouchableOpacity style={styles.fab} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={handleGerarCardapio}>
           <Feather name="camera" size={18} color={colors.background} />
         </TouchableOpacity>
         <Feather name="user" size={20} color={colors.textSecondary} />
       </View>
+
+      <PaywallCard
+        visivel={paywallVisivel}
+        onFechar={() => setPaywallVisivel(false)}
+        onAssinar={handleAssinar}
+        consultasPorDia={1}
+        // Só personaliza com a meta quando o perfil realmente carregou —
+        // sem isso o card mostraria o número de uma pessoa fictícia.
+        metaCalorias={perfil ? metas.calorias : undefined}
+        metaProteina={perfil ? metas.proteina : undefined}
+        objetivo={perfil?.objetivo}
+        tempoDisponivel={perfil?.tempo_disponivel}
+      />
     </View>
   );
 }

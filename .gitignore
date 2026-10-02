@@ -1,5 +1,9 @@
 node_modules/
 dist/
+
+# .NET
+bin/
+obj/
 .env
 .env.*
 !.env.example

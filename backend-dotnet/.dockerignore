@@ -1,0 +1,14 @@
+# O Docker nao le o .gitignore — este arquivo e o equivalente para o build.
+
+# Resultados de compilacao local: a imagem compila do zero lá dentro.
+bin
+obj
+
+# Segredos: chegam no container em tempo de execucao, via `env_file` do
+# docker-compose. Dentro da imagem ficariam gravados na camada para sempre.
+.env
+.env.*
+
+# Lixo
+*.log
+.git

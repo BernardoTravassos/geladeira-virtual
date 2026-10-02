@@ -50,3 +50,36 @@ export async function getProfile() {
     throw erro;
   }
 }
+
+/**
+ * Pede um cardápio a partir da foto da geladeira.
+ *
+ * Ainda incompleto: o endpoint /meals/generate é um esqueleto no backend
+ * (Fase 4 da migração) e a câmera não está integrada no app. O que já está
+ * pronto aqui é o contrato de erro — ver `ehLimiteAtingido` abaixo.
+ */
+export async function gerarCardapio(foto?: { uri: string; nome: string; tipo: string }) {
+  const token = await AsyncStorage.getItem("@geladeira:token");
+
+  const corpo = new FormData();
+  if (foto) {
+    // O React Native aceita este formato de arquivo no FormData.
+    corpo.append("photo", { uri: foto.uri, name: foto.nome, type: foto.tipo } as any);
+  }
+
+  const response = await api.post("/meals/generate", corpo, {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+  });
+  return response.data;
+}
+
+/**
+ * O usuário do plano gratuito esgotou as consultas do dia?
+ *
+ * 429 é o código HTTP para "você fez pedidos demais". É o backend que decide
+ * isso — o app apenas reage. Confiar no app para controlar o limite seria o
+ * mesmo erro de confiar nele para dizer que o usuário pagou.
+ */
+export function ehLimiteAtingido(erro: any) {
+  return erro?.response?.status === 429;
+}
