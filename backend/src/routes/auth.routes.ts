@@ -2,6 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
+import { env } from "../env";
 import { pool } from "../database";
 
 export const authRoutes = Router();
@@ -36,7 +37,7 @@ authRoutes.post("/register", async (req, res) => {
     [usuarioId]
   );
 
-  const token = jwt.sign({ usuarioId }, process.env.JWT_SECRET!, { expiresIn: "30d" });
+  const token = jwt.sign({ usuarioId }, env.JWT_SECRET, { expiresIn: "30d" });
   res.status(201).json({ token });
 });
 
@@ -62,6 +63,6 @@ authRoutes.post("/login", async (req, res) => {
     return res.status(401).json({ error: "E-mail ou senha incorretos" });
   }
 
-  const token = jwt.sign({ usuarioId: usuario.id }, process.env.JWT_SECRET!, { expiresIn: "30d" });
+  const token = jwt.sign({ usuarioId: usuario.id }, env.JWT_SECRET, { expiresIn: "30d" });
   res.status(200).json({ token });
 });

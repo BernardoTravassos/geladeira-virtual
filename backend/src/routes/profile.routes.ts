@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
+import { env } from "../env";
 import { pool } from "../database";
 
 export const profileRoutes = Router();
@@ -27,7 +28,7 @@ function autenticar(req: any, res: any, next: any) {
 
   const token = authHeader.replace("Bearer ", "");
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET!) as { usuarioId: string };
+    const payload = jwt.verify(token, env.JWT_SECRET) as { usuarioId: string };
     req.usuarioId = payload.usuarioId;
     next();
   } catch {
