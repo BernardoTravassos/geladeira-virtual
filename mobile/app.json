@@ -15,6 +15,27 @@
       "adaptiveIcon": {
         "backgroundColor": "#1F5D3A"
       }
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "33b427fc-e5ae-41a4-a2cc-825128fc8b66"
+      }
+    },
+    "owner": "geladeriavirtual",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/33b427fc-e5ae-41a4-a2cc-825128fc8b66"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "O Geladeira Virtual usa a câmera para fotografar seus pratos e sua geladeira.",
+          "photosPermission": "O Geladeira Virtual acessa suas fotos para você anexar o prato."
+        }
+      ]
+    ]
   }
 }
