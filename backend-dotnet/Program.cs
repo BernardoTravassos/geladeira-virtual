@@ -17,6 +17,7 @@ builder.Services.AddDbContext<GeladeiraContext>(opcoes =>
 
 builder.Services.AddScoped<IServicoEmail, ServicoEmailSmtp>();
 builder.Services.AddScoped<ServicoJwt>();
+builder.Services.AddSingleton<GeladeiraVirtual.Api.IA.IServicoAnaliseRefeicao, GeladeiraVirtual.Api.IA.ServicoAnaliseRefeicao>();
 builder.Services.AdicionarAutenticacaoJwt(new ServicoJwt(configuracao));
 builder.Services.AddAuthorization();
 
@@ -34,6 +35,12 @@ builder.Services.AddRateLimiter(opcoes =>
     opcoes.AddPolicy("auth-rigido", contexto => RateLimitPartition.GetFixedWindowLimiter(
         contexto.Connection.RemoteIpAddress?.ToString() ?? "desconhecido",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 3, Window = TimeSpan.FromMinutes(15) }));
+
+    // Cada análise de foto custa dinheiro: teto por USUÁRIO (não por IP), para
+    // que um token vazado ou um script não esgote o orçamento da API.
+    opcoes.AddPolicy("analise", contexto => RateLimitPartition.GetFixedWindowLimiter(
+        contexto.User.FindFirst("usuarioId")?.Value ?? contexto.Connection.RemoteIpAddress?.ToString() ?? "desconhecido",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromHours(1) }));
 
     opcoes.OnRejected = async (contexto, _) =>
     {
@@ -86,7 +93,34 @@ builder.Services.AddCors(opcoes =>
     });
 });
 
+if (configuracao.ConfiarNoProxy)
+{
+    builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(opcoes =>
+    {
+        opcoes.ForwardedHeaders =
+            Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+            Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+
+        // Por padrão só um proxy em loopback é aceito. O túnel chega pela rede
+        // do Docker, então precisamos aceitar o que vier — por isso este modo é
+        // opt-in e documentado como "só atrás de um proxy seu".
+        opcoes.KnownProxies.Clear();
+        opcoes.KnownIPNetworks.Clear();
+        opcoes.ForwardLimit = 1;   // só o último salto: um cabeçalho encadeado não vira IP do atacante
+    });
+}
+
 var app = builder.Build();
+
+// Precisa ser o PRIMEIRO do pipeline: o limitador de tentativas e os logs
+// leem o IP depois dele.
+if (configuracao.ConfiarNoProxy)
+{
+    app.UseForwardedHeaders();
+    app.Logger.LogWarning(
+        "TRUST_PROXY ligado: o IP do cliente vem de X-Forwarded-For. " +
+        "Use só com a API atrás de um túnel/proxy seu.");
+}
 
 if (configuracao.Email is null)
 {

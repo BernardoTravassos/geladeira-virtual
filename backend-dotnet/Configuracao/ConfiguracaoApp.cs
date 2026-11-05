@@ -31,6 +31,20 @@ public sealed class ConfiguracaoApp
     /// </summary>
     public bool MostrarErros { get; init; }
 
+    /// <summary>
+    /// Liga a leitura do IP real do cliente a partir de X-Forwarded-For.
+    ///
+    /// Atrás de um túnel ou proxy reverso, o IP de origem de TODA requisição é
+    /// o do proxy — e o limite de tentativas, que conta por IP, passaria a
+    /// dividir a cota entre todos os usuários juntos.
+    ///
+    /// Fica DESLIGADO por padrão porque confiar nesse cabeçalho sem haver um
+    /// proxy de verdade na frente deixa qualquer um forjar o próprio IP e
+    /// escapar do limite. Ligue (TRUST_PROXY=true) só quando a API estiver
+    /// exposta por um túnel ou proxy que você controla.
+    /// </summary>
+    public bool ConfiarNoProxy { get; init; }
+
     // Valores que já vieram nos arquivos de exemplo do repositório. Se algum
     // deles chegar aqui como valor real, não é segredo — está publicado.
     private static readonly string[] Placeholders =
@@ -49,6 +63,7 @@ public sealed class ConfiguracaoApp
         CorsOrigins = (config["CORS_ORIGINS"] ?? "")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
         Email = CarregarEmail(config),
+        ConfiarNoProxy = string.Equals(config["TRUST_PROXY"]?.Trim(), "true", StringComparison.OrdinalIgnoreCase),
         MostrarErros = !string.Equals(
             Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
             "Production", StringComparison.OrdinalIgnoreCase),
