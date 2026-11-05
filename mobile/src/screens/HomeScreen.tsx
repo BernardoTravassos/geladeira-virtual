@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -7,6 +8,7 @@ import { getProfile, gerarCardapio, ehLimiteAtingido } from "../services/api";
 import { calcularMetas, saudacao, PerfilApi } from "../utils/nutricao";
 import PaywallCard from "../components/PaywallCard";
 import { DEV } from "../config/dev";
+import { carregarDia, totaisDoRegistro, RegistroDoDia } from "../utils/refeicoes";
 
 type Refeicao = {
   chave: string;
@@ -20,8 +22,8 @@ type Refeicao = {
 
 // TODO: quando o backend registrar as refeições do dia, isto deve vir da API.
 // Por enquanto é dado de exemplo: só o café da manhã aparece como feito.
-const refeicoesDoDia: Refeicao[] = [
-  { chave: "cafe", nome: "Café da manhã", horario: "07:30", icone: "coffee", fracaoDaMeta: 0.25, feita: true, caloriasConsumidas: 380 },
+const refeicoesBase: Refeicao[] = [
+  { chave: "cafe", nome: "Café da manhã", horario: "07:30", icone: "coffee", fracaoDaMeta: 0.25, feita: false },
   { chave: "almoco", nome: "Almoço", horario: "12:30", icone: "sun", fracaoDaMeta: 0.35, feita: false },
   { chave: "lanche", nome: "Lanche", horario: "16:00", icone: "zap", fracaoDaMeta: 0.1, feita: false },
   { chave: "jantar", nome: "Jantar", horario: "19:30", icone: "moon", fracaoDaMeta: 0.3, feita: false },
@@ -41,6 +43,14 @@ export default function HomeScreen({ navigation }: any) {
   const [copos, setCopos] = useState(0);
   const [paywallVisivel, setPaywallVisivel] = useState(false);
   const [gerando, setGerando] = useState(false);
+  const [registros, setRegistros] = useState<RegistroDoDia>({});
+
+  // Recarrega ao voltar da tela da refeição, para o card já aparecer como "Feita".
+  useFocusEffect(
+    useCallback(() => {
+      carregarDia().then(setRegistros);
+    }, []),
+  );
 
   useEffect(() => {
     getProfile()
@@ -85,6 +95,10 @@ export default function HomeScreen({ navigation }: any) {
   }
 
   const metas = calcularMetas(perfil);
+  const refeicoesDoDia = refeicoesBase.map((r) => {
+    const reg = registros[r.chave];
+    return reg ? { ...r, feita: true, caloriasConsumidas: totaisDoRegistro(reg).kcal } : r;
+  });
   const consumidas = refeicoesDoDia.reduce((soma, r) => soma + (r.caloriasConsumidas || 0), 0);
   const progressoCalorias = Math.min(consumidas / metas.calorias, 1);
   const restantes = Math.max(metas.calorias - consumidas, 0);
@@ -174,8 +188,10 @@ export default function HomeScreen({ navigation }: any) {
         <Text style={styles.sectionTitle}>Refeições do dia</Text>
         <View style={styles.card}>
           {refeicoesDoDia.map((r, i) => (
-            <View
+            <TouchableOpacity
               key={r.chave}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate("Refeicao", { chave: r.chave, nome: r.nome, icone: r.icone })}
               style={[styles.mealRow, i < refeicoesDoDia.length - 1 && styles.mealRowDivider]}
             >
               <View style={styles.mealIcon}>
@@ -184,7 +200,7 @@ export default function HomeScreen({ navigation }: any) {
               <View style={{ flex: 1 }}>
                 <Text style={styles.mealRowName}>{r.nome}</Text>
                 <Text style={styles.mealRowInfo}>
-                  {r.horario} · ~{Math.round(metas.calorias * r.fracaoDaMeta)} kcal
+                  {r.feita ? `${r.caloriasConsumidas} kcal registradas` : `${r.horario} · ~${Math.round(metas.calorias * r.fracaoDaMeta)} kcal`}
                 </Text>
               </View>
               <View style={[styles.chip, r.feita ? styles.chipDone : styles.chipPending]}>
@@ -192,7 +208,8 @@ export default function HomeScreen({ navigation }: any) {
                   {r.feita ? "Feita" : "Pendente"}
                 </Text>
               </View>
-            </View>
+              <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
           ))}
         </View>
 

@@ -1,7 +1,54 @@
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
+import { DEV } from "../config/dev";
 
-const BASE_URL = "http://192.168.4.43:3333";
+const PORTA_API = 3333;
+
+/**
+ * Endereço da API, descoberto automaticamente em desenvolvimento.
+ *
+ * Antes isto era um IP fixo, e quebrava toda vez que a máquina trocava de
+ * rede — o celular ficava chamando um endereço que não existia mais, e o
+ * sintoma era um "ERR_NETWORK" sem explicação.
+ *
+ * O Expo informa, em `hostUri`, o endereço da máquina que está servindo o
+ * app (algo como "192.168.15.6:8081"). Como o backend roda nessa mesma
+ * máquina, basta trocar a porta. Mudou de rede? O Expo informa o endereço
+ * novo e o app acompanha sozinho.
+ *
+ * Em produção isto não se aplica: ali o servidor tem endereço próprio e
+ * fixo, definido em `extra.apiUrl` no app.json, e que precisa ser HTTPS
+ * (item 5 da lista de segurança).
+ */
+function ehEnderecoLocal(host: string): boolean {
+  return (
+    host === "localhost" ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  );
+}
+
+function descobrirEnderecoApi(): string {
+  // Em produção, defina "extra": { "apiUrl": "https://..." } no app.json.
+  const urlConfigurada = Constants.expoConfig?.extra?.apiUrl as string | undefined;
+  if (urlConfigurada) return urlConfigurada;
+
+  // Só em desenvolvimento, e só se o host for uma máquina da rede local.
+  // Num app PUBLICADO o hostUri aponta para os servidores do Expo
+  // (u.expo.dev), e sem esta guarda o app tentaria http://u.expo.dev:3333.
+  // Em modo túnel o host é *.exp.direct, que também não hospeda a nossa API.
+  const hostDoExpo = Constants.expoConfig?.hostUri?.split(":")[0];
+  if (__DEV__ && hostDoExpo && ehEnderecoLocal(hostDoExpo)) {
+    return `http://${hostDoExpo}:${PORTA_API}`;
+  }
+
+  // Último recurso: emulador rodando na própria máquina.
+  return `http://localhost:${PORTA_API}`;
+}
+
+const BASE_URL = descobrirEnderecoApi();
 
 /** Exportado para as telas conseguirem mostrar o endereço em uso ao diagnosticar. */
 export const ENDERECO_API = BASE_URL;
@@ -27,12 +74,18 @@ export const api = axios.create({
   timeout: 15000,
 });
 
+// Modo demo: sem backend, o perfil do wizard fica guardado só no aparelho.
+const CHAVE_PERFIL_DEMO = "@geladeira:perfilDemo";
+const TOKEN_DEMO = "token-demonstracao";
+
 export async function login(email: string, senha: string) {
+  if (DEV.MODO_DEMO) return TOKEN_DEMO;
   const response = await api.post("/auth/login", { email, senha });
   return response.data.token as string;
 }
 
 export async function register(email: string, senha: string) {
+  if (DEV.MODO_DEMO) return TOKEN_DEMO;
   const response = await api.post("/auth/register", { email, senha });
   return response.data.token as string;
 }
@@ -50,6 +103,10 @@ export async function saveProfile(dados: {
   preferenciaPreparo: string;
   tempoDisponivel: string;
 }) {
+  if (DEV.MODO_DEMO) {
+    await AsyncStorage.setItem(CHAVE_PERFIL_DEMO, JSON.stringify(dados));
+    return dados;
+  }
   const token = await AsyncStorage.getItem("@geladeira:token");
   const response = await api.post("/profile", dados, {
     headers: { Authorization: `Bearer ${token}` },
@@ -59,6 +116,10 @@ export async function saveProfile(dados: {
 
 // Retorna o perfil do usuário logado, ou null se ele ainda não preencheu o wizard (404).
 export async function getProfile() {
+  if (DEV.MODO_DEMO) {
+    const salvo = await AsyncStorage.getItem(CHAVE_PERFIL_DEMO);
+    return salvo ? JSON.parse(salvo) : null;
+  }
   const token = await AsyncStorage.getItem("@geladeira:token");
   try {
     const response = await api.get("/profile", {
@@ -114,6 +175,7 @@ export function ehLimiteAtingido(erro: any) {
  * dois casos.
  */
 export async function solicitarCodigoSenha(email: string) {
+  if (DEV.MODO_DEMO) return;
   await api.post("/auth/forgot-password", { email });
 }
 
@@ -125,5 +187,72 @@ export async function solicitarCodigoSenha(email: string) {
  *   429 → tentativas demais
  */
 export async function redefinirSenha(email: string, codigo: string, novaSenha: string) {
+  if (DEV.MODO_DEMO) return;
   await api.post("/auth/reset-password", { email, codigo, novaSenha });
+}
+
+export type EstimativaPrato = {
+  eh_comida: boolean;
+  alimentos: { nome: string; gramas_estimadas: number }[];
+  calorias: number;
+  proteina_g: number;
+  carboidratos_g: number;
+  gordura_g: number;
+  confianca: "baixa" | "media" | "alta";
+  aviso: string;
+};
+
+/** Envia a foto do prato e recebe uma ESTIMATIVA nutricional feita por IA. */
+export async function analisarPrato(fotoUri: string): Promise<EstimativaPrato> {
+  if (DEV.SIMULAR_IA_PRATO) return simularAnalisePrato();
+
+  const token = await AsyncStorage.getItem("@geladeira:token");
+  const corpo = new FormData();
+  corpo.append("photo", { uri: fotoUri, name: "prato.jpg", type: "image/jpeg" } as any);
+
+  const response = await api.post("/meals/analyze", corpo, {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+    timeout: 60000, // a análise por IA leva alguns segundos
+  });
+  return response.data;
+}
+
+// Pratos prontos para a simulação (DEV.SIMULAR_IA_PRATO). Rodam em sequência,
+// para quem testa ver variações em vez de sempre o mesmo resultado.
+const PRATOS_SIMULADOS: Omit<EstimativaPrato, "eh_comida" | "aviso">[] = [
+  {
+    alimentos: [
+      { nome: "Arroz branco", gramas_estimadas: 120 },
+      { nome: "Feijão", gramas_estimadas: 100 },
+      { nome: "Frango grelhado", gramas_estimadas: 110 },
+      { nome: "Salada de alface e tomate", gramas_estimadas: 60 },
+    ],
+    calorias: 520, proteina_g: 42, carboidratos_g: 58, gordura_g: 12, confianca: "media",
+  },
+  {
+    alimentos: [
+      { nome: "Macarrão ao molho", gramas_estimadas: 220 },
+      { nome: "Carne moída", gramas_estimadas: 80 },
+    ],
+    calorias: 610, proteina_g: 28, carboidratos_g: 78, gordura_g: 19, confianca: "baixa",
+  },
+  {
+    alimentos: [
+      { nome: "Pão francês", gramas_estimadas: 50 },
+      { nome: "Ovo mexido", gramas_estimadas: 100 },
+      { nome: "Mamão", gramas_estimadas: 150 },
+    ],
+    calorias: 390, proteina_g: 19, carboidratos_g: 48, gordura_g: 13, confianca: "alta",
+  },
+];
+let proximoPratoSimulado = 0;
+
+async function simularAnalisePrato(): Promise<EstimativaPrato> {
+  await new Promise((r) => setTimeout(r, 1800)); // parece uma análise de verdade
+  const prato = PRATOS_SIMULADOS[proximoPratoSimulado++ % PRATOS_SIMULADOS.length];
+  return {
+    eh_comida: true,
+    ...prato,
+    aviso: "Estimativa aproximada feita por IA a partir da foto.",
+  };
 }

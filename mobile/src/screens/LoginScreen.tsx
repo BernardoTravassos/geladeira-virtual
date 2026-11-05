@@ -111,6 +111,12 @@ export default function LoginScreen({ navigation }: any) {
             <Text style={styles.linkDiscreto}>Esqueci minha senha</Text>
           </TouchableOpacity>
         )}
+
+        <View style={styles.separador} />
+
+        <TouchableOpacity onPress={() => navigation.navigate("NutriLogin")}>
+          <Text style={styles.linkDiscreto}>Sou nutricionista parceiro</Text>
+        </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
@@ -163,6 +169,12 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 13,
     marginTop: 10,
+  },
+  separador: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginTop: 16,
+    marginBottom: 4,
   },
   linkDiscreto: {
     textAlign: "center",
