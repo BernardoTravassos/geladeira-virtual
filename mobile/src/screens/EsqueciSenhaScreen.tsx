@@ -16,6 +16,7 @@ import { colors } from "../theme/colors";
 import { solicitarCodigoSenha, redefinirSenha } from "../services/api";
 import { DEV } from "../config/dev";
 import CampoSenha from "../components/CampoSenha";
+import BarraTeclado, { ID_BARRA_TECLADO } from "../components/BarraTeclado";
 
 const SENHA_MINIMA = 8;
 
@@ -106,7 +107,11 @@ export default function EsqueciSenhaScreen({ navigation }: any) {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView contentContainerStyle={styles.conteudo} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.conteudo}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         <TouchableOpacity
           style={styles.voltar}
           onPress={() => (etapa === "codigo" ? setEtapa("email") : navigation.replace("Login"))}
@@ -161,6 +166,7 @@ export default function EsqueciSenhaScreen({ navigation }: any) {
               placeholder="000000"
               placeholderTextColor={colors.border}
               keyboardType="number-pad"
+              inputAccessoryViewID={ID_BARRA_TECLADO}
               maxLength={6}
               value={codigo}
               onChangeText={(texto) => setCodigo(texto.replace(/\D/g, ""))}
@@ -202,6 +208,7 @@ export default function EsqueciSenhaScreen({ navigation }: any) {
           <Text style={styles.link}>Voltar para o login</Text>
         </TouchableOpacity>
       </ScrollView>
+      <BarraTeclado />
     </KeyboardAvoidingView>
   );
 }
