@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from "react";
+import { validarSenha } from "../utils/validacao";
 import BarraInferior from "../components/BarraInferior";
 import { useFeedback } from "../components/Feedback";
 import {
@@ -183,8 +184,8 @@ export default function PerfilScreen({ navigation }: any) {
 
   async function confirmarSenha() {
     if (!senhaAtual) return setErroSenha("Digite a senha atual.");
-    if (novaSenha.length < 8) return setErroSenha("A nova senha precisa de pelo menos 8 caracteres.");
-    if (novaSenha.length > 72) return setErroSenha("A nova senha é longa demais (máximo 72).");
+    const erroForca = validarSenha(novaSenha);
+    if (erroForca) return setErroSenha(erroForca);
     if (novaSenha !== confirmacao) return setErroSenha("A confirmação não é igual à nova senha.");
     if (novaSenha === senhaAtual) return setErroSenha("A nova senha precisa ser diferente da atual.");
 
@@ -395,7 +396,7 @@ export default function PerfilScreen({ navigation }: any) {
                     <TouchableOpacity onPress={() => setSenhaAberta(false)} accessibilityLabel="Fechar"><Feather name="x" size={20} color={colors.textSecondary} /></TouchableOpacity>
                   </View>
                   <CampoSenha placeholder="Senha atual" textContentType="password" value={senhaAtual} onChangeText={(t) => { setSenhaAtual(t); setErroSenha(""); }} />
-                  <CampoSenha placeholder="Nova senha (mínimo 8 caracteres)" textContentType="newPassword" value={novaSenha} onChangeText={(t) => { setNovaSenha(t); setErroSenha(""); }} />
+                  <CampoSenha placeholder="Nova senha (8+ caracteres e 1 maiúscula)" textContentType="newPassword" value={novaSenha} onChangeText={(t) => { setNovaSenha(t); setErroSenha(""); }} />
                   <CampoSenha placeholder="Confirmar nova senha" textContentType="newPassword" value={confirmacao} onChangeText={(t) => { setConfirmacao(t); setErroSenha(""); }} />
                   {!!erroSenha && <Text style={styles.erro}>{erroSenha}</Text>}
                   <TouchableOpacity style={styles.botao} onPress={confirmarSenha} disabled={salvando} activeOpacity={0.85}>
