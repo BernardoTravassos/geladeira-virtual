@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useFeedback } from "../components/Feedback";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View,
   Text,
@@ -11,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
+  ScrollView,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -18,17 +21,20 @@ import { colors } from "../theme/colors";
 import { saveProfile } from "../services/api";
 import BarraTeclado, { ID_BARRA_TECLADO } from "../components/BarraTeclado";
 import { interpretarNumero, type RegraNumero } from "../utils/numeros";
+import { REGRAS, OPCOES_INTOLERANCIA } from "../utils/camposPerfil";
+import { NIVEIS_ATIVIDADE, nivelPorRotulo } from "../utils/nutricao";
 
 type Pergunta = {
   chave: string;
   titulo: string;
-  tipo: "texto" | "numero" | "selecao";
+  tipo: "texto" | "numero" | "selecao" | "intolerancia";
   opcoes?: string[];
   opcional?: boolean;
   placeholder?: string;
   /** Só para tipo "numero". As faixas têm que bater com as do backend (PerfilRequest.cs). */
   regra?: RegraNumero;
 };
+
 
 const perguntas: Pergunta[] = [
   { chave: "nome", titulo: "Qual é o seu nome?", tipo: "texto", placeholder: "Seu nome" },
@@ -37,7 +43,7 @@ const perguntas: Pergunta[] = [
     titulo: "Qual é a sua idade?",
     tipo: "numero",
     placeholder: "Ex: 28",
-    regra: { artigoRotulo: "A idade", min: 13, max: 120, inteiro: "baixo" },
+    regra: REGRAS.idade,
   },
   { chave: "sexo", titulo: "Qual é o seu sexo?", tipo: "selecao", opcoes: ["Masculino", "Feminino", "Outro"] },
   {
@@ -45,26 +51,14 @@ const perguntas: Pergunta[] = [
     titulo: "Qual é a sua altura (cm)?",
     tipo: "numero",
     placeholder: "Ex: 175 (em centímetros)",
-    regra: {
-      artigoRotulo: "A altura",
-      min: 50,
-      max: 250,
-      unidade: "cm",
-      inteiro: "proximo",
-      outraUnidade: {
-        menorQue: 3,
-        mensagem:
-          "Formato incorreto: a altura deve ser informada em centímetros, " +
-          "como 175 — e não em metros (1,75).",
-      },
-    },
+    regra: REGRAS.alturaCm,
   },
   {
     chave: "pesoKg",
     titulo: "Qual é o seu peso (kg)?",
     tipo: "numero",
     placeholder: "Ex: 70,5",
-    regra: { artigoRotulo: "O peso", min: 20, max: 400, unidade: "kg", casas: 1 },
+    regra: REGRAS.pesoKg,
   },
   {
     chave: "objetivo",
@@ -72,14 +66,17 @@ const perguntas: Pergunta[] = [
     tipo: "selecao",
     opcoes: ["Emagrecer", "Ganhar massa", "Manter o peso", "Comer mais saudável"],
   },
-  { chave: "praticaExercicio", titulo: "Você pratica exercício?", tipo: "selecao", opcoes: ["Sim", "Não"] },
+  {
+    chave: "nivelAtividade",
+    titulo: "Qual é o seu nível de atividade física?",
+    tipo: "selecao",
+    opcoes: NIVEIS_ATIVIDADE.map((n) => n.rotulo),
+  },
   { chave: "vegano", titulo: "Você é vegano?", tipo: "selecao", opcoes: ["Sim", "Não"] },
   {
     chave: "intolerancias",
     titulo: "Alguma intolerância alimentar?",
-    tipo: "texto",
-    placeholder: "Ex: lactose, glúten (opcional)",
-    opcional: true,
+    tipo: "intolerancia",
   },
   {
     chave: "preferenciaPreparo",
@@ -96,13 +93,38 @@ const perguntas: Pergunta[] = [
 ];
 
 export default function WizardScreen({ navigation }: any) {
+  const feedback = useFeedback();
+  const insets = useSafeAreaInsets();
   const [indice, setIndice] = useState(0);
   const [respostas, setRespostas] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
+  // Intolerância: a resposta "Sim"/"Não" fica em respostas.intolerancias; o que
+  // foi marcado (pode ser mais de uma) e o texto de "Outra" ficam à parte.
+  const [marcadas, setMarcadas] = useState<string[]>([]);
+  const [outraIntolerancia, setOutraIntolerancia] = useState("");
 
   const pergunta = perguntas[indice];
   const respostaAtual = respostas[pergunta.chave] || "";
-  const podeContinuar = pergunta.opcional || respostaAtual.trim().length > 0;
+  const intoleranciasEscolhidas = [
+    ...marcadas.filter((m) => m !== "Outra"),
+    ...(marcadas.includes("Outra") && outraIntolerancia.trim() ? [outraIntolerancia.trim()] : []),
+  ];
+  const podeContinuar =
+    pergunta.tipo === "intolerancia"
+      ? respostaAtual === "Não" || (respostaAtual === "Sim" && intoleranciasEscolhidas.length > 0)
+      : pergunta.opcional || respostaAtual.trim().length > 0;
+
+  function alternarIntolerancia(opcao: string) {
+    setMarcadas((prev) => (prev.includes(opcao) ? prev.filter((o) => o !== opcao) : [...prev, opcao]));
+  }
+
+  function responderTemIntolerancia(valor: "Sim" | "Não") {
+    atualizarResposta(valor);
+    if (valor === "Não") {
+      setMarcadas([]);
+      setOutraIntolerancia("");
+    }
+  }
 
   function atualizarResposta(valor: string) {
     setRespostas((prev) => ({ ...prev, [pergunta.chave]: valor }));
@@ -144,14 +166,16 @@ export default function WizardScreen({ navigation }: any) {
         alturaCm: numeroDe("alturaCm"),
         pesoKg: numeroDe("pesoKg"),
         objetivo: respostas.objetivo,
-        praticaExercicio: respostas.praticaExercicio === "Sim",
-        intolerancias: respostas.intolerancias || undefined,
+        praticaExercicio: nivelPorRotulo(respostas.nivelAtividade)?.chave !== "sedentario",
+        nivelAtividade: nivelPorRotulo(respostas.nivelAtividade)?.chave,
+        intolerancias: intoleranciasEscolhidas.length ? intoleranciasEscolhidas.join(", ") : undefined,
         vegano: respostas.vegano === "Sim",
         preferenciaPreparo: respostas.preferenciaPreparo,
         tempoDisponivel: respostas.tempoDisponivel,
       });
 
       await AsyncStorage.setItem("@geladeira:wizardDone", "true");
+      feedback.sucesso("Perfil salvo!", "Tudo pronto para você começar.", { atraso: 450 });
       navigation.replace("Home");
     } catch (erro: any) {
       const mensagem = erro?.response?.data?.error || "Não foi possível salvar. Tente de novo.";
@@ -176,7 +200,7 @@ export default function WizardScreen({ navigation }: any) {
     >
       {/* Tocar fora do campo fecha o teclado. Os botões de dentro seguem funcionando. */}
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingBottom: 24 + insets.bottom }]}>
           <View style={styles.topBar}>
             <TouchableOpacity onPress={voltar}>
               <Feather name="arrow-left" size={20} color={colors.textPrimary} />
@@ -219,6 +243,63 @@ export default function WizardScreen({ navigation }: any) {
                 value={respostaAtual}
                 onChangeText={atualizarResposta}
               />
+            )}
+
+            {pergunta.tipo === "intolerancia" && (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ gap: 10 }}
+              >
+                {(["Sim", "Não"] as const).map((opcao) => {
+                  const selecionado = respostaAtual === opcao;
+                  return (
+                    <TouchableOpacity
+                      key={opcao}
+                      style={[styles.opcao, selecionado && styles.opcaoSelecionada]}
+                      onPress={() => responderTemIntolerancia(opcao)}
+                    >
+                      <Text style={[styles.opcaoTexto, selecionado && styles.opcaoTextoSelecionado]}>{opcao}</Text>
+                      {selecionado && <Feather name="check" size={16} color={colors.primary} />}
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {respostaAtual === "Sim" && (
+                  <View style={{ gap: 10, marginTop: 6 }}>
+                    <Text style={styles.subtitulo}>Qual(is)? Pode marcar mais de uma.</Text>
+                    <View style={styles.chips}>
+                      {OPCOES_INTOLERANCIA.map((opcao) => {
+                        const marcada = marcadas.includes(opcao);
+                        return (
+                          <TouchableOpacity
+                            key={opcao}
+                            style={[styles.chip, marcada && styles.chipMarcado]}
+                            onPress={() => alternarIntolerancia(opcao)}
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: marcada }}
+                          >
+                            {marcada && <Feather name="check" size={14} color="#fff" />}
+                            <Text style={[styles.chipTexto, marcada && styles.chipTextoMarcado]}>{opcao}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                    {marcadas.includes("Outra") && (
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Qual outra? Ex: milho"
+                        placeholderTextColor={colors.textSecondary}
+                        maxLength={60}
+                        value={outraIntolerancia}
+                        onChangeText={setOutraIntolerancia}
+                        returnKeyType="done"
+                        onSubmitEditing={Keyboard.dismiss}
+                      />
+                    )}
+                  </View>
+                )}
+              </ScrollView>
             )}
 
             {pergunta.tipo === "selecao" &&
@@ -304,6 +385,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 14,
   },
+  subtitulo: { fontSize: 13, color: colors.textSecondary },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  chipMarcado: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipTexto: { fontSize: 14, color: colors.textPrimary },
+  chipTextoMarcado: { color: "#fff", fontWeight: "600" },
   buttonDisabled: { opacity: 0.4 },
   buttonText: { color: colors.background, fontWeight: "600", fontSize: 15 },
 });

@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import React, { useEffect, useRef, useState } from "react";
+import { View } from "react-native";
+import { NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -11,6 +12,14 @@ import NutriPacienteScreen from "./src/screens/NutriPacienteScreen";
 import WizardScreen from "./src/screens/WizardScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import RefeicaoScreen from "./src/screens/RefeicaoScreen";
+import HistoricoScreen from "./src/screens/HistoricoScreen";
+import PerfilScreen from "./src/screens/PerfilScreen";
+import ReceitaScreen from "./src/screens/ReceitaScreen";
+import SmartwatchScreen from "./src/screens/SmartwatchScreen";
+import TreinoScreen from "./src/screens/TreinoScreen";
+import ReceitasScreen from "./src/screens/ReceitasScreen";
+import TransicaoLogo, { TransicaoLogoRef } from "./src/components/TransicaoLogo";
+import { FeedbackProvider } from "./src/components/Feedback";
 
 export type RootStackParamList = {
   Login: undefined;
@@ -20,12 +29,21 @@ export type RootStackParamList = {
   NutriPaciente: { id: string };
   Wizard: undefined;
   Home: undefined;
-  Refeicao: { chave: string; nome: string; icone: string };
+  Perfil: undefined;
+  Smartwatch: undefined;
+  Treino: undefined;
+  Receita: { id: string };
+  Receitas: undefined;
+  Historico: { periodo?: "dia" | "semana" | "mes" | "semestre" };
+  Refeicao: { chave: string; nome: string; icone: string; fracaoDaMeta: number };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
+  const navegacao = useNavigationContainerRef();
+  const transicao = useRef<TransicaoLogoRef>(null);
+  const rotaAnterior = useRef<string | undefined>(undefined);
   const [initialRoute, setInitialRoute] = useState<keyof RootStackParamList | null>(null);
 
   useEffect(() => {
@@ -49,8 +67,23 @@ export default function App() {
   if (!initialRoute) return null; // splash nativo do Expo continua visível aqui
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
+    <FeedbackProvider>
+    <View style={{ flex: 1 }}>
+    <NavigationContainer
+      ref={navegacao}
+      onReady={() => { rotaAnterior.current = navegacao.getCurrentRoute()?.name; }}
+      onStateChange={() => {
+        // Toca a transição com o símbolo a cada troca de tela (ir ou voltar).
+        const atual = navegacao.getCurrentRoute()?.name;
+        if (rotaAnterior.current && atual && atual !== rotaAnterior.current) transicao.current?.tocar();
+        rotaAnterior.current = atual;
+      }}
+    >
+      <Stack.Navigator
+        initialRouteName={initialRoute}
+        // A cortina verde cobre a troca; a animação padrão do sistema ficaria brigando com ela.
+        screenOptions={{ headerShown: false, animation: "fade", animationDuration: 200 }}
+      >
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="EsqueciSenha" component={EsqueciSenhaScreen} />
         <Stack.Screen name="NutriLogin" component={NutriLoginScreen} />
@@ -59,7 +92,16 @@ export default function App() {
         <Stack.Screen name="Wizard" component={WizardScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Refeicao" component={RefeicaoScreen} />
+        <Stack.Screen name="Historico" component={HistoricoScreen} />
+        <Stack.Screen name="Perfil" component={PerfilScreen} />
+        <Stack.Screen name="Smartwatch" component={SmartwatchScreen} />
+        <Stack.Screen name="Treino" component={TreinoScreen} />
+        <Stack.Screen name="Receita" component={ReceitaScreen} />
+        <Stack.Screen name="Receitas" component={ReceitasScreen} />
       </Stack.Navigator>
     </NavigationContainer>
+    <TransicaoLogo ref={transicao} />
+    </View>
+    </FeedbackProvider>
   );
 }

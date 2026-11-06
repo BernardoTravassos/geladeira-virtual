@@ -11,7 +11,9 @@ import {
   Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { colors } from "../theme/colors";
+import { colors, degrade } from "../theme/colors";
+import { LinearGradient } from "expo-linear-gradient";
+import Logo from "../components/Logo";
 import { login, register, getProfile, descreverFalhaDeRede } from "../services/api";
 import CampoSenha from "../components/CampoSenha";
 
@@ -65,12 +67,17 @@ export default function LoginScreen({ navigation }: any) {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.hero}>
+      <LinearGradient colors={degrade.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+        <View style={styles.decoracao1} />
+        <View style={styles.decoracao2} />
+        <View style={styles.logoCaixa}>
+          <Logo tamanho={78} />
+        </View>
         <Text style={styles.title}>Sua geladeira,{"\n"}mais esperta</Text>
         <Text style={styles.subtitle}>
           Cardápios feitos pra você, a partir do que já tem em casa
         </Text>
-      </View>
+      </LinearGradient>
 
       <View style={styles.card}>
         <TextInput
@@ -125,14 +132,17 @@ export default function LoginScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   hero: {
-    flex: 0.55,
-    backgroundColor: colors.primary,
+    flex: 0.58,
     justifyContent: "flex-end",
     padding: 24,
+    overflow: "hidden",
   },
+  decoracao1: { position: "absolute", width: 260, height: 260, borderRadius: 130, backgroundColor: "rgba(255,255,255,0.06)", top: -90, right: -70 },
+  decoracao2: { position: "absolute", width: 170, height: 170, borderRadius: 85, backgroundColor: "rgba(255,255,255,0.05)", top: 70, left: -60 },
+  logoCaixa: { width: 96, height: 96, borderRadius: 28, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center", marginBottom: 18 },
   title: {
-    fontSize: 26,
-    fontWeight: "700",
+    fontSize: 30,
+    fontWeight: "800",
     color: colors.background,
     marginBottom: 8,
   },

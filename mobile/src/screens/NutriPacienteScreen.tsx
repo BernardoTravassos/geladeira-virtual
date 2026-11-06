@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useFeedback } from "../components/Feedback";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert,
   KeyboardAvoidingView, Platform,
@@ -12,6 +14,8 @@ import Medidor from "../components/Medidor";
 import BarraTeclado, { ID_BARRA_TECLADO } from "../components/BarraTeclado";
 
 export default function NutriPacienteScreen({ route, navigation }: any) {
+  const feedback = useFeedback();
+  const insets = useSafeAreaInsets();
   const paciente = PACIENTES.find((p) => p.id === route.params?.id) ?? PACIENTES[0];
 
   const [editandoMetas, setEditandoMetas] = useState(false);
@@ -22,10 +26,10 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
 
   function salvarMetas() {
     setEditandoMetas(false);
-    Alert.alert(
-      "Meta atualizada",
-      `A meta de ${paciente.nome.split(" ")[0]} passou para ${metaCalorias} kcal.\n\n` +
-        "(demonstração — ainda não é gravado)"
+    feedback.sucesso(
+      "Meta atualizada!",
+      `A meta de ${paciente.nome.split(" ")[0]} passou para ${metaCalorias} kcal. (demonstração: ainda não é gravado)`,
+      { duracao: 2600 }
     );
   }
 
@@ -35,7 +39,7 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
-        contentContainerStyle={styles.conteudo}
+        contentContainerStyle={[styles.conteudo, { paddingBottom: 36 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -87,7 +91,7 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
           <View style={styles.macros}>
             {paciente.macros.map((m, i) => (
               <View key={m.nome} style={{ flex: 1 }}>
-                <Medidor rotulo={m.nome} atual={m.atual} meta={m.meta} atraso={120 + i * 90} />
+                <Medidor avisarExcesso rotulo={m.nome} atual={m.atual} meta={m.meta} atraso={120 + i * 90} />
               </View>
             ))}
           </View>

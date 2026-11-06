@@ -1,4 +1,5 @@
 import React from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { colors } from "../theme/colors";
@@ -6,11 +7,12 @@ import { NUTRICIONISTA, PACIENTES, type Paciente } from "../mocks/nutricionista"
 
 /** Vagas livres aparecem como espaço vazio, para o limite do plano ficar visível. */
 export default function NutriPacientesScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const vagasLivres = NUTRICIONISTA.vagas - PACIENTES.length;
 
   return (
     <View style={styles.tela}>
-      <ScrollView contentContainerStyle={styles.conteudo} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.conteudo, { paddingBottom: 32 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View style={styles.cabecalho}>
           <View style={{ flex: 1 }}>
             <Text style={styles.ola}>Bom dia</Text>

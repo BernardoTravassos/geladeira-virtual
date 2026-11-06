@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useFeedback } from "../components/Feedback";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Image, ActivityIndicator,
   Alert, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback,
@@ -10,16 +12,30 @@ import BarraTeclado, { ID_BARRA_TECLADO } from "../components/BarraTeclado";
 import { ALIMENTOS, CATEGORIAS, Alimento, Categoria, alimentoPorId, nutrientes } from "../data/alimentos";
 import { carregarDia, salvarRefeicao, totaisDoRegistro, ItemPrato, EstimativaSalva } from "../utils/refeicoes";
 import { interpretarNumero } from "../utils/numeros";
-import { analisarPrato, descreverFalhaDeRede } from "../services/api";
+import { analisarPrato, descreverFalhaDeRede, getProfile } from "../services/api";
+import { calcularMetas, PerfilApi } from "../utils/nutricao";
+import { avaliarRefeicao } from "../utils/avaliacao";
 
 const REGRA_GRAMAS = { artigoRotulo: "A quantidade", min: 1, max: 2000, unidade: "g", casas: 0 };
 
+const CORES_AVALIACAO = {
+  dentro: { fundo: "#E6F4EA", texto: "#1E5E34", icone: "check-circle" as const },
+  acima: { fundo: "#FDECEA", texto: "#8E2B20", icone: "alert-triangle" as const },
+  abaixo: { fundo: "#FFF4DC", texto: "#6B4500", icone: "alert-circle" as const },
+};
+
 export default function RefeicaoScreen({ navigation, route }: any) {
-  const { chave, nome, icone } = route.params as { chave: string; nome: string; icone: keyof typeof Feather.glyphMap };
+  const feedback = useFeedback();
+  const insets = useSafeAreaInsets();
+  const { chave, nome, icone, fracaoDaMeta } = route.params as {
+    chave: string; nome: string; icone: keyof typeof Feather.glyphMap; fracaoDaMeta: number;
+  };
 
   const [itens, setItens] = useState<ItemPrato[]>([]);
   const [fotoUri, setFotoUri] = useState<string | undefined>();
   const [estimativa, setEstimativa] = useState<EstimativaSalva | undefined>();
+  const [perfil, setPerfil] = useState<PerfilApi | null>(null);
+  const [kcalOutras, setKcalOutras] = useState(0);
   const [analisando, setAnalisando] = useState(false);
   const [erroAnalise, setErroAnalise] = useState("");
   const [categoria, setCategoria] = useState<Categoria>("carboidratos");
@@ -29,7 +45,16 @@ export default function RefeicaoScreen({ navigation, route }: any) {
   const [erroGramas, setErroGramas] = useState("");
 
   useEffect(() => {
+    getProfile().then(setPerfil).catch(() => {}); // sem perfil, usa metas padrão
+  }, []);
+
+  useEffect(() => {
     carregarDia().then((dia) => {
+      setKcalOutras(
+        Object.entries(dia)
+          .filter(([k]) => k !== chave)
+          .reduce((soma, [, reg]) => soma + totaisDoRegistro(reg).kcal, 0),
+      );
       if (dia[chave]) {
         setItens(dia[chave].itens);
         setFotoUri(dia[chave].fotoUri);
@@ -46,6 +71,16 @@ export default function RefeicaoScreen({ navigation, route }: any) {
 
   const total = totaisDoRegistro({ itens, estimativa });
   const usandoEstimativa = itens.length === 0 && !!estimativa;
+  const avaliacao = avaliarRefeicao({
+    kcal: total.kcal,
+    proteina: total.proteina,
+    metas: calcularMetas(perfil),
+    fracaoDaMeta,
+    objetivo: perfil?.objetivo,
+    kcalOutrasRefeicoes: kcalOutras,
+    estimativa: usandoEstimativa,
+  });
+  const cor = avaliacao ? CORES_AVALIACAO[avaliacao.status] : null;
   const gramasDe = (id: string) => itens.find((i) => i.alimentoId === id)?.gramas;
 
   async function tirarFoto() {
@@ -144,6 +179,7 @@ export default function RefeicaoScreen({ navigation, route }: any) {
       return;
     }
     await salvarRefeicao(chave, { itens, fotoUri, estimativa, registradoEm: new Date().toISOString() });
+    feedback.sucesso(`${nome} salvo!`, `${Math.round(total.kcal)} kcal registradas`, { atraso: 450 });
     navigation.goBack();
   }
 
@@ -161,7 +197,7 @@ export default function RefeicaoScreen({ navigation, route }: any) {
         <Text style={styles.titulo}>{nome}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.conteudo} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.conteudo, { paddingBottom: 120 + insets.bottom }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* Foto do prato */}
         {fotoUri ? (
           <View style={styles.fotoCard}>
@@ -224,6 +260,17 @@ export default function RefeicaoScreen({ navigation, route }: any) {
         )}
         {fotoUri && !estimativa && !analisando && erroAnalise === "" && (
           <Text style={styles.aviso}>Foto anexada.</Text>
+        )}
+
+        {avaliacao && cor && !analisando && (
+          <View style={[styles.avaliacao, { backgroundColor: cor.fundo }]}>
+            <View style={styles.avaliacaoTopo}>
+              <Feather name={cor.icone} size={18} color={cor.texto} />
+              <Text style={[styles.avaliacaoTitulo, { color: cor.texto }]}>{avaliacao.titulo}</Text>
+            </View>
+            <Text style={[styles.avaliacaoTxt, { color: cor.texto }]}>{avaliacao.detalhe}</Text>
+            <Text style={[styles.avaliacaoDia, { color: cor.texto }]}>{avaliacao.linhaDia}</Text>
+          </View>
         )}
 
         {/* Seleção manual */}
@@ -308,12 +355,15 @@ export default function RefeicaoScreen({ navigation, route }: any) {
         )}
       </ScrollView>
 
-      <View style={styles.rodape}>
+      <View style={[styles.rodape, { paddingBottom: 28 + insets.bottom }]}>
         <View>
           <Text style={styles.rodapeKcal}>{usandoEstimativa ? "≈ " : ""}{Math.round(total.kcal)} kcal</Text>
           <Text style={styles.rodapeMacros}>
             P {Math.round(total.proteina)} g · C {Math.round(total.carbo)} g · G {Math.round(total.gordura)} g
           </Text>
+          {avaliacao && cor && (
+            <Text style={[styles.rodapeStatus, { color: cor.texto }]}>{avaliacao.titulo}</Text>
+          )}
         </View>
         <TouchableOpacity style={styles.salvar} onPress={salvar} activeOpacity={0.85}>
           <Text style={styles.salvarTxt}>Salvar refeição</Text>
@@ -326,7 +376,7 @@ export default function RefeicaoScreen({ navigation, route }: any) {
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={styles.fundoModal}>
               <TouchableWithoutFeedback>
-                <View style={styles.folha}>
+                <View style={[styles.folha, { paddingBottom: 34 + insets.bottom }]}>
                   <View style={styles.folhaTopo}>
                     <Text style={styles.folhaTitulo}>{editando?.nome}</Text>
                     <TouchableOpacity onPress={() => setEditando(null)} accessibilityLabel="Fechar">
@@ -436,6 +486,12 @@ const styles = StyleSheet.create({
   estimativaLista: { fontSize: 12, color: colors.textSecondary, lineHeight: 17, marginTop: 2 },
   avisoBox: { flexDirection: "row", gap: 8, backgroundColor: "#FFF4DC", borderRadius: 10, padding: 10, marginTop: 8 },
   avisoBoxTxt: { flex: 1, fontSize: 12, lineHeight: 17, color: "#6B4500" },
+  avaliacao: { borderRadius: 14, padding: 14, marginTop: 12, gap: 6 },
+  avaliacaoTopo: { flexDirection: "row", alignItems: "center", gap: 8 },
+  avaliacaoTitulo: { fontSize: 15, fontWeight: "800", flex: 1 },
+  avaliacaoTxt: { fontSize: 13, lineHeight: 19 },
+  avaliacaoDia: { fontSize: 12, fontWeight: "700", marginTop: 2 },
+  rodapeStatus: { fontSize: 12, fontWeight: "700", marginTop: 2 },
   rodape: { position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 28 },
   rodapeKcal: { fontSize: 20, fontWeight: "800", color: colors.textPrimary },
   rodapeMacros: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },

@@ -1,14 +1,36 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { colors } from "../theme/colors";
+import { colors, sombra, degrade } from "../theme/colors";
+import { LinearGradient } from "expo-linear-gradient";
+import Logo from "../components/Logo";
+import AnelProgresso from "../components/AnelProgresso";
+import NumeroAnimado from "../components/NumeroAnimado";
+import BarraHero from "../components/BarraHero";
+
+// A transição com o símbolo cobre a tela por ~0,5 s: o preenchimento começa quando ela sai.
+const ATRASO_ENTRADA = 450;
 import { getProfile, gerarCardapio, ehLimiteAtingido } from "../services/api";
-import { calcularMetas, saudacao, PerfilApi } from "../utils/nutricao";
+import { calcularMetas, calcularMetaAguaMl, saudacao, PerfilApi } from "../utils/nutricao";
 import PaywallCard from "../components/PaywallCard";
+import CardAgua from "../components/CardAgua";
 import { DEV } from "../config/dev";
+import { PERIODOS } from "../utils/historico";
+import { useChaveDoDia } from "../utils/dia";
+import { RECEITAS } from "../mocks/receitas";
 import { carregarDia, totaisDoRegistro, RegistroDoDia } from "../utils/refeicoes";
+
+// Cada refeição tem a sua cor, para a lista deixar de ser uma fila de bolinhas iguais.
+const TOM_REFEICAO: Record<string, { fundo: string; icone: string }> = {
+  cafe: { fundo: "#FFF0D9", icone: "#D98324" },
+  almoco: { fundo: "#E3F4E8", icone: "#2E8B57" },
+  lanche: { fundo: "#FDE7EB", icone: "#D6455D" },
+  jantar: { fundo: "#E4ECFB", icone: "#3F63B8" },
+  ceia: { fundo: "#EDE6FA", icone: "#7650C2" },
+};
 
 type Refeicao = {
   chave: string;
@@ -24,32 +46,31 @@ type Refeicao = {
 // Por enquanto é dado de exemplo: só o café da manhã aparece como feito.
 const refeicoesBase: Refeicao[] = [
   { chave: "cafe", nome: "Café da manhã", horario: "07:30", icone: "coffee", fracaoDaMeta: 0.25, feita: false },
-  { chave: "almoco", nome: "Almoço", horario: "12:30", icone: "sun", fracaoDaMeta: 0.35, feita: false },
+  { chave: "almoco", nome: "Almoço", horario: "12:30", icone: "sun", fracaoDaMeta: 0.3, feita: false },
   { chave: "lanche", nome: "Lanche", horario: "16:00", icone: "zap", fracaoDaMeta: 0.1, feita: false },
-  { chave: "jantar", nome: "Jantar", horario: "19:30", icone: "moon", fracaoDaMeta: 0.3, feita: false },
+  { chave: "jantar", nome: "Jantar", horario: "19:30", icone: "moon", fracaoDaMeta: 0.25, feita: false },
+  { chave: "ceia", nome: "Ceia", horario: "21:30", icone: "star", fracaoDaMeta: 0.1, feita: false },
 ];
 
-// TODO: virá da tabela "consultas". Dado de exemplo por enquanto.
-const consultasRecentes = [
-  { id: "1", titulo: "Frango grelhado com legumes", quando: "Ontem", calorias: 520 },
-  { id: "2", titulo: "Omelete de espinafre", quando: "Anteontem", calorias: 340 },
-];
+// TODO: virá da tabela "consultas". Por enquanto são as receitas de exemplo.
+const consultasRecentes = RECEITAS.slice(0, 2);
 
 const cardapioGeradoHoje = false; // vira true quando existir uma consulta de hoje
-const METAS_COPOS = 8;
 
 export default function HomeScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const [perfil, setPerfil] = useState<PerfilApi | null>(null);
-  const [copos, setCopos] = useState(0);
   const [paywallVisivel, setPaywallVisivel] = useState(false);
   const [gerando, setGerando] = useState(false);
   const [registros, setRegistros] = useState<RegistroDoDia>({});
 
   // Recarrega ao voltar da tela da refeição, para o card já aparecer como "Feita".
+  // Ao virar o dia (00h) a chave muda e as refeições de hoje recomeçam zeradas.
+  const chaveDoDia = useChaveDoDia();
   useFocusEffect(
     useCallback(() => {
       carregarDia().then(setRegistros);
-    }, []),
+    }, [chaveDoDia]),
   );
 
   useEffect(() => {
@@ -99,79 +120,90 @@ export default function HomeScreen({ navigation }: any) {
     const reg = registros[r.chave];
     return reg ? { ...r, feita: true, caloriasConsumidas: totaisDoRegistro(reg).kcal } : r;
   });
-  const consumidas = refeicoesDoDia.reduce((soma, r) => soma + (r.caloriasConsumidas || 0), 0);
+  const consumidas = Math.round(refeicoesDoDia.reduce((soma, r) => soma + (r.caloriasConsumidas || 0), 0));
   const progressoCalorias = Math.min(consumidas / metas.calorias, 1);
   const restantes = Math.max(metas.calorias - consumidas, 0);
+  const passou = consumidas > metas.calorias;
   const primeiroNome = perfil?.nome?.trim().split(" ")[0];
 
-  // Macros consumidos estimados na mesma proporção das calorias (até existir registro real).
+  // Macros REAIS: a soma do que foi registrado hoje (a mesma conta do Histórico).
+  const totaisHoje = Object.values(registros).reduce(
+    (t, reg) => {
+      const x = totaisDoRegistro(reg);
+      return { proteina: t.proteina + x.proteina, carbo: t.carbo + x.carbo, gordura: t.gordura + x.gordura };
+    },
+    { proteina: 0, carbo: 0, gordura: 0 },
+  );
   const macros = [
-    { nome: "Proteína", meta: metas.proteina },
-    { nome: "Carboidrato", meta: metas.carboidrato },
-    { nome: "Gordura", meta: metas.gordura },
-  ].map((m) => ({ ...m, atual: Math.round(m.meta * progressoCalorias) }));
+    { nome: "Proteína", meta: metas.proteina, atual: Math.round(totaisHoje.proteina) },
+    { nome: "Carboidrato", meta: metas.carboidrato, atual: Math.round(totaisHoje.carbo) },
+    { nome: "Gordura", meta: metas.gordura, atual: Math.round(totaisHoje.gordura) },
+  ];
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greetingSmall}>{saudacao()}</Text>
-            <Text style={styles.greetingName}>{primeiroNome ? `Oi, ${primeiroNome}` : "Olá"}</Text>
-          </View>
-          <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.bellButton}>
-              <Feather name="bell" size={18} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.bellButton} onPress={handleLogout}>
-              <Feather name="log-out" size={18} color={colors.primary} />
-            </TouchableOpacity>
-          </View>
-        </View>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+        <LinearGradient colors={degrade.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+          {/* Círculos decorativos, só para dar profundidade ao fundo */}
+          <View style={styles.decoracao1} />
+          <View style={styles.decoracao2} />
 
-        <TouchableOpacity style={styles.ctaCard} activeOpacity={0.85} onPress={handleGerarCardapio}>
-          <View style={styles.ctaIcon}>
-            <Feather name="camera" size={20} color={colors.background} />
-          </View>
-          <View>
-            <Text style={styles.ctaTitle}>Tirar foto da geladeira</Text>
-            <Text style={styles.ctaSubtitle}>Gere seu cardápio agora</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Calorias + macros */}
-        <View style={styles.card}>
-          <View style={styles.cardHeaderRow}>
-            <Text style={styles.sectionLabel}>Hoje</Text>
-            <Text style={styles.calorieGoal}>meta {metas.calorias} kcal</Text>
-          </View>
-          <Text style={styles.calorieValue}>
-            {consumidas} <Text style={styles.calorieUnit}>kcal consumidas</Text>
-          </Text>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progressoCalorias * 100}%` }]} />
-          </View>
-          <Text style={styles.calorieRemaining}>Restam {restantes} kcal</Text>
-
-          <View style={styles.macroRow}>
-            {macros.map((m) => (
-              <View key={m.nome} style={styles.macroItem}>
-                <Text style={styles.macroName}>{m.nome}</Text>
-                <View style={styles.macroTrack}>
-                  <View
-                    style={[
-                      styles.macroFill,
-                      { width: `${m.meta ? Math.min(m.atual / m.meta, 1) * 100 : 0}%` },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.macroValue}>
-                  {m.atual}/{m.meta} g
-                </Text>
+          <View style={styles.heroTopo}>
+            <View style={styles.heroMarca}>
+              <Logo tamanho={40} />
+              <View>
+                <Text style={styles.greetingSmall}>{saudacao()}</Text>
+                <Text style={styles.greetingName}>{primeiroNome ? `Oi, ${primeiroNome}` : "Olá"}</Text>
               </View>
-            ))}
+            </View>
+            <View style={styles.headerActions}>
+              <TouchableOpacity style={styles.heroBotao} accessibilityLabel="Notificações">
+                <Feather name="bell" size={18} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.heroBotao} onPress={handleLogout} accessibilityLabel="Sair">
+                <Feather name="log-out" size={18} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+
+          <View style={styles.heroCorpo}>
+            <AnelProgresso tamanho={156} espessura={14} progresso={progressoCalorias} cor={passou ? "#FFB38F" : "#7EE0B5"} atraso={ATRASO_ENTRADA}>
+              <NumeroAnimado style={styles.anelValor} valor={passou ? consumidas - metas.calorias : restantes} atraso={ATRASO_ENTRADA} />
+              <Text style={styles.anelRotulo}>{passou ? "kcal acima da meta" : "kcal restantes"}</Text>
+            </AnelProgresso>
+
+            <View style={styles.heroMacros}>
+              <View>
+                <Text style={styles.heroKcal}>
+                  <NumeroAnimado valor={consumidas} atraso={ATRASO_ENTRADA} /> <Text style={styles.heroKcalUn}>/ {metas.calorias} kcal</Text>
+                </Text>
+                <Text style={styles.heroHoje}>consumidas hoje</Text>
+              </View>
+              {macros.map((m) => (
+                <View key={m.nome}>
+                  <View style={styles.heroMacroLinha}>
+                    <Text style={styles.heroMacroNome}>{m.nome}</Text>
+                    <Text style={styles.heroMacroValor}><NumeroAnimado valor={m.atual} atraso={ATRASO_ENTRADA} />/{m.meta} g{m.atual > m.meta ? `  +${m.atual - m.meta}` : ""}</Text>
+                  </View>
+                  <BarraHero atual={m.atual} meta={m.meta} atraso={ATRASO_ENTRADA} />
+                </View>
+              ))}
+            </View>
+          </View>
+        </LinearGradient>
+
+        <TouchableOpacity activeOpacity={0.9} onPress={handleGerarCardapio}>
+          <LinearGradient colors={degrade.acento} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.ctaCard, sombra]}>
+            <View style={styles.ctaIcon}>
+              <Feather name="camera" size={22} color="#F2622B" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.ctaTitle}>Tirar foto da geladeira</Text>
+              <Text style={styles.ctaSubtitle}>Gere seu cardápio agora, em segundos</Text>
+            </View>
+            <Feather name="arrow-right" size={20} color="#fff" />
+          </LinearGradient>
+        </TouchableOpacity>
 
         {/* Cardápio de hoje */}
         {cardapioGeradoHoje ? null : (
@@ -191,11 +223,11 @@ export default function HomeScreen({ navigation }: any) {
             <TouchableOpacity
               key={r.chave}
               activeOpacity={0.7}
-              onPress={() => navigation.navigate("Refeicao", { chave: r.chave, nome: r.nome, icone: r.icone })}
+              onPress={() => navigation.navigate("Refeicao", { chave: r.chave, nome: r.nome, icone: r.icone, fracaoDaMeta: r.fracaoDaMeta })}
               style={[styles.mealRow, i < refeicoesDoDia.length - 1 && styles.mealRowDivider]}
             >
-              <View style={styles.mealIcon}>
-                <Feather name={r.icone} size={16} color={colors.primary} />
+              <View style={[styles.mealIcon, styles.mealIconGrande, { backgroundColor: TOM_REFEICAO[r.chave]?.fundo }]}>
+                <Feather name={r.icone} size={18} color={TOM_REFEICAO[r.chave]?.icone ?? colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.mealRowName}>{r.nome}</Text>
@@ -205,7 +237,7 @@ export default function HomeScreen({ navigation }: any) {
               </View>
               <View style={[styles.chip, r.feita ? styles.chipDone : styles.chipPending]}>
                 <Text style={[styles.chipText, r.feita ? styles.chipTextDone : styles.chipTextPending]}>
-                  {r.feita ? "Feita" : "Pendente"}
+                  {r.feita ? "✓ Feita" : "Pendente"}
                 </Text>
               </View>
               <Feather name="chevron-right" size={16} color={colors.textSecondary} />
@@ -214,43 +246,51 @@ export default function HomeScreen({ navigation }: any) {
         </View>
 
         {/* Hidratação */}
-        <View style={[styles.card, styles.waterCard]}>
-          <View style={styles.mealIcon}>
-            <Feather name="droplet" size={16} color={colors.primary} />
+        <CardAgua metaMl={calcularMetaAguaMl(perfil)} />
+
+
+        {/* Histórico */}
+        <Text style={styles.sectionTitle}>Histórico</Text>
+        <View style={styles.card}>
+          <Text style={styles.mealRowInfo}>Veja o que você consumiu, com gráficos</Text>
+          <View style={styles.periodos}>
+            {PERIODOS.map((p) => (
+              <TouchableOpacity
+                key={p.chave}
+                style={styles.periodo}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate("Historico", { periodo: p.chave })}
+                accessibilityRole="button"
+                accessibilityLabel={`Histórico de ${p.nome}`}
+              >
+                <View style={styles.mealIcon}>
+                  <Feather name={p.icone} size={16} color={colors.primary} />
+                </View>
+                <Text style={styles.periodoTxt}>{p.nome}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.mealRowName}>Hidratação</Text>
-            <Text style={styles.mealRowInfo}>
-              {copos} de {METAS_COPOS} copos
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.waterButton}
-            onPress={() => setCopos((c) => Math.max(c - 1, 0))}
-          >
-            <Feather name="minus" size={16} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.waterButton, styles.waterButtonAdd]}
-            onPress={() => setCopos((c) => Math.min(c + 1, METAS_COPOS))}
-          >
-            <Feather name="plus" size={16} color={colors.background} />
-          </TouchableOpacity>
         </View>
 
         {/* Consultas recentes */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Consultas recentes</Text>
-          <Text style={styles.sectionLink}>Ver histórico</Text>
+          <TouchableOpacity onPress={() => navigation.navigate("Receitas")} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button">
+            <Text style={styles.sectionLink}>Ver todas</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.card}>
           {consultasRecentes.map((c, i) => (
-            <View
+            <TouchableOpacity
               key={c.id}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate("Receita", { id: c.id })}
               style={[styles.mealRow, i < consultasRecentes.length - 1 && styles.mealRowDivider]}
+              accessibilityRole="button"
+              accessibilityLabel={`Ver receita: ${c.titulo}`}
             >
               <View style={styles.mealIcon}>
-                <Feather name="clock" size={16} color={colors.primary} />
+                <Feather name="book-open" size={16} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.mealRowName}>{c.titulo}</Text>
@@ -259,17 +299,31 @@ export default function HomeScreen({ navigation }: any) {
                 </Text>
               </View>
               <Feather name="chevron-right" size={16} color={colors.textSecondary} />
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <Feather name="home" size={20} color={colors.primary} />
+      <View style={[styles.bottomNav, { height: 70 + insets.bottom, paddingBottom: 10 + insets.bottom }]}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate("Treino")}
+          hitSlop={{ top: 14, bottom: 14, left: 24, right: 24 }}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir treino"
+        >
+          <MaterialCommunityIcons name="dumbbell" size={24} color={colors.primary} />
+        </TouchableOpacity>
         <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={handleGerarCardapio}>
           <Feather name="camera" size={18} color={colors.background} />
         </TouchableOpacity>
-        <Feather name="user" size={20} color={colors.textSecondary} />
+        <TouchableOpacity
+          onPress={() => navigation.navigate("Perfil")}
+          hitSlop={{ top: 14, bottom: 14, left: 24, right: 24 }}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir meu perfil"
+        >
+          <Feather name="user" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
       </View>
 
       <PaywallCard
@@ -290,11 +344,36 @@ export default function HomeScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { padding: 20, paddingTop: 48, paddingBottom: 100, gap: 14 },
+  scrollContent: { padding: 20, paddingTop: 0, paddingBottom: 100, gap: 16 },
+  hero: {
+    marginHorizontal: -20,
+    paddingTop: 54,
+    paddingHorizontal: 20,
+    paddingBottom: 26,
+    borderBottomLeftRadius: 34,
+    borderBottomRightRadius: 34,
+    overflow: "hidden",
+    gap: 22,
+  },
+  decoracao1: { position: "absolute", width: 220, height: 220, borderRadius: 110, backgroundColor: "rgba(255,255,255,0.06)", top: -70, right: -60 },
+  decoracao2: { position: "absolute", width: 150, height: 150, borderRadius: 75, backgroundColor: "rgba(255,255,255,0.05)", bottom: -50, left: -40 },
+  heroTopo: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  heroMarca: { flexDirection: "row", alignItems: "center", gap: 10 },
+  heroBotao: { width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" },
+  heroCorpo: { flexDirection: "row", alignItems: "center", gap: 18 },
+  anelValor: { fontSize: 36, fontWeight: "800", color: "#fff" },
+  anelRotulo: { fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: -2, textAlign: "center", paddingHorizontal: 18 },
+  heroMacros: { flex: 1, gap: 12 },
+  heroKcal: { fontSize: 22, fontWeight: "800", color: "#fff" },
+  heroKcalUn: { fontSize: 12, fontWeight: "500", color: "rgba(255,255,255,0.75)" },
+  heroHoje: { fontSize: 11, color: "rgba(255,255,255,0.7)" },
+  heroMacroLinha: { flexDirection: "row", justifyContent: "space-between", marginBottom: 5 },
+  heroMacroNome: { fontSize: 11, fontWeight: "600", color: "rgba(255,255,255,0.85)" },
+  heroMacroValor: { fontSize: 11, fontWeight: "700", color: "#fff" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   headerActions: { flexDirection: "row", gap: 8 },
-  greetingSmall: { fontSize: 12, color: colors.textSecondary },
-  greetingName: { fontSize: 18, fontWeight: "700", color: colors.textPrimary, marginTop: 2 },
+  greetingSmall: { fontSize: 12, color: "rgba(255,255,255,0.75)" },
+  greetingName: { fontSize: 19, fontWeight: "800", color: "#fff", marginTop: 1 },
   bellButton: {
     width: 36,
     height: 36,
@@ -304,29 +383,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   ctaCard: {
-    backgroundColor: colors.primary,
-    borderRadius: 18,
+    borderRadius: 20,
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
   ctaIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.accent,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
   },
-  ctaTitle: { color: colors.background, fontWeight: "600", fontSize: 14 },
-  ctaSubtitle: { color: "#CFE6D8", fontSize: 12, marginTop: 2 },
+  ctaTitle: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  ctaSubtitle: { color: "rgba(255,255,255,0.9)", fontSize: 12, marginTop: 2 },
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 20,
+    padding: 16,
+    ...sombra,
   },
   cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   sectionLabel: { fontSize: 11, color: colors.textSecondary, fontWeight: "600" },
@@ -366,13 +445,16 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, textAlign: "center" },
   emptyText: { fontSize: 12, color: colors.textSecondary, textAlign: "center", lineHeight: 17 },
-  sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginTop: 4 },
+  sectionTitle: { fontSize: 18, fontWeight: "800", color: colors.textPrimary, marginTop: 6 },
   sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginTop: 4,
   },
+  periodos: { flexDirection: "row", gap: 8, marginTop: 12 },
+  periodo: { flex: 1, alignItems: "center", gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
+  periodoTxt: { fontSize: 12, fontWeight: "600", color: colors.textPrimary },
   sectionLink: { fontSize: 11, color: colors.primary, fontWeight: "600" },
   mealRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
   mealRowDivider: { borderBottomWidth: 1, borderBottomColor: colors.border },
@@ -384,8 +466,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  mealRowName: { fontSize: 13, fontWeight: "600", color: colors.textPrimary },
-  mealRowInfo: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
+  mealIconGrande: { width: 42, height: 42, borderRadius: 14 },
+  mealRowName: { fontSize: 14, fontWeight: "600", color: colors.textPrimary },
+  mealRowInfo: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   chip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   chipDone: { backgroundColor: "#EAF3E4" },
   chipPending: { backgroundColor: "#F1EFE6" },

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useFeedback } from "../components/Feedback";
 import {
   View,
   Text,
@@ -21,6 +22,7 @@ import BarraTeclado, { ID_BARRA_TECLADO } from "../components/BarraTeclado";
 const SENHA_MINIMA = 8;
 
 export default function EsqueciSenhaScreen({ navigation }: any) {
+  const feedback = useFeedback();
   const [etapa, setEtapa] = useState<"email" | "codigo">("email");
   const [email, setEmail] = useState("");
   const [codigo, setCodigo] = useState("");
@@ -90,9 +92,8 @@ export default function EsqueciSenhaScreen({ navigation }: any) {
 
       await redefinirSenha(email, codigo.trim(), novaSenha);
 
-      Alert.alert("Senha alterada", "Entre com a sua nova senha.", [
-        { text: "OK", onPress: () => navigation.replace("Login") },
-      ]);
+      feedback.sucesso("Senha alterada!", "Entre com a sua nova senha.", { atraso: 450, duracao: 2300 });
+      navigation.replace("Login");
     } catch (erro: any) {
       const mensagem =
         erro?.response?.data?.error || "Não foi possível redefinir a senha. Tente de novo.";
