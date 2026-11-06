@@ -28,7 +28,7 @@ export type RootStackParamList = {
   NutriPacientes: undefined;
   NutriPaciente: { id: string };
   Wizard: undefined;
-  Home: undefined;
+  Home: { camera?: number } | undefined;
   Perfil: undefined;
   Smartwatch: undefined;
   Treino: undefined;
@@ -37,6 +37,8 @@ export type RootStackParamList = {
   Historico: { periodo?: "dia" | "semana" | "mes" | "semestre" };
   Refeicao: { chave: string; nome: string; icone: string; fracaoDaMeta: number };
 };
+
+const ABAS = ["Home", "Treino", "Historico", "Perfil"];
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -75,7 +77,9 @@ export default function App() {
       onStateChange={() => {
         // Toca a transição com o símbolo a cada troca de tela (ir ou voltar).
         const atual = navegacao.getCurrentRoute()?.name;
-        if (rotaAnterior.current && atual && atual !== rotaAnterior.current) transicao.current?.tocar();
+        const entreAbas = ABAS.includes(rotaAnterior.current ?? "") && ABAS.includes(atual ?? "");
+        // Trocar de aba pelo menu inferior é rápido; a cortina é para mudanças de contexto.
+        if (rotaAnterior.current && atual && atual !== rotaAnterior.current && !entreAbas) transicao.current?.tocar();
         rotaAnterior.current = atual;
       }}
     >

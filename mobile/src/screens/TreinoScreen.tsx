@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from "react";
+import BarraInferior from "../components/BarraInferior";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -43,7 +44,7 @@ export default function TreinoScreen({ navigation }: any) {
 
   return (
     <View style={styles.tela}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 + insets.bottom }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={degrade.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
           <View style={styles.decoracao} />
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.voltar} accessibilityLabel="Voltar">
@@ -95,6 +96,7 @@ export default function TreinoScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <BarraInferior ativa="Treino" />
     </View>
   );
 }

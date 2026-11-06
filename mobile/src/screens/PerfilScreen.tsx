@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from "react";
+import BarraInferior from "../components/BarraInferior";
 import { useFeedback } from "../components/Feedback";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert,
@@ -214,7 +215,7 @@ export default function PerfilScreen({ navigation }: any) {
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 + insets.bottom }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={degrade.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
           <View style={styles.decoracao} />
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.voltar} accessibilityLabel="Voltar">
@@ -407,6 +408,7 @@ export default function PerfilScreen({ navigation }: any) {
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </Modal>
+      <BarraInferior ativa="Perfil" />
     </View>
   );
 }

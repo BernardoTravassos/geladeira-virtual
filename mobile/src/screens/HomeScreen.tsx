@@ -7,6 +7,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors, sombra, degrade } from "../theme/colors";
 import { LinearGradient } from "expo-linear-gradient";
 import Logo from "../components/Logo";
+import BarraInferior from "../components/BarraInferior";
 import AnelProgresso from "../components/AnelProgresso";
 import NumeroAnimado from "../components/NumeroAnimado";
 import BarraHero from "../components/BarraHero";
@@ -57,7 +58,7 @@ const consultasRecentes = RECEITAS.slice(0, 2);
 
 const cardapioGeradoHoje = false; // vira true quando existir uma consulta de hoje
 
-export default function HomeScreen({ navigation }: any) {
+export default function HomeScreen({ navigation, route }: any) {
   const insets = useSafeAreaInsets();
   const [perfil, setPerfil] = useState<PerfilApi | null>(null);
   const [paywallVisivel, setPaywallVisivel] = useState(false);
@@ -104,6 +105,14 @@ export default function HomeScreen({ navigation }: any) {
     }
   }
 
+  // Outra tela (Treino, Histórico, Perfil) tocou no botão da câmera: volta para cá e abre.
+  useEffect(() => {
+    if (route?.params?.camera) {
+      navigation.setParams({ camera: undefined });
+      handleGerarCardapio();
+    }
+  }, [route?.params?.camera]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function handleAssinar() {
     // TODO: integrar a compra pela loja (Apple/Google). A tabela `assinaturas`
     // só pode ser alterada por webhook servidor-a-servidor — nunca pelo app.
@@ -142,7 +151,7 @@ export default function HomeScreen({ navigation }: any) {
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={degrade.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
           {/* Círculos decorativos, só para dar profundidade ao fundo */}
           <View style={styles.decoracao1} />
@@ -304,27 +313,7 @@ export default function HomeScreen({ navigation }: any) {
         </View>
       </ScrollView>
 
-      <View style={[styles.bottomNav, { height: 70 + insets.bottom, paddingBottom: 10 + insets.bottom }]}>
-        <TouchableOpacity
-          onPress={() => navigation.navigate("Treino")}
-          hitSlop={{ top: 14, bottom: 14, left: 24, right: 24 }}
-          accessibilityRole="button"
-          accessibilityLabel="Abrir treino"
-        >
-          <MaterialCommunityIcons name="dumbbell" size={24} color={colors.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={handleGerarCardapio}>
-          <Feather name="camera" size={18} color={colors.background} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => navigation.navigate("Perfil")}
-          hitSlop={{ top: 14, bottom: 14, left: 24, right: 24 }}
-          accessibilityRole="button"
-          accessibilityLabel="Abrir meu perfil"
-        >
-          <Feather name="user" size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
+      <BarraInferior ativa="Home" onCamera={handleGerarCardapio} />
 
       <PaywallCard
         visivel={paywallVisivel}
@@ -486,29 +475,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   waterButtonAdd: { backgroundColor: colors.primary, borderColor: colors.primary },
-  bottomNav: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 70,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingBottom: 10,
-  },
-  fab: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: -26,
-    borderWidth: 4,
-    borderColor: colors.background,
-  },
 });

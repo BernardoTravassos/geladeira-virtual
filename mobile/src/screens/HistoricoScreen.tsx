@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import BarraInferior from "../components/BarraInferior";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { colors } from "../theme/colors";
-import { modoSaude } from "../utils/saude";
+import { formatarDuracao, modoSaude } from "../utils/saude";
 import { serie } from "../theme/graficos";
 import GraficoColunas from "../components/GraficoColunas";
 import Medidor from "../components/Medidor";
@@ -164,7 +165,7 @@ export default function HistoricoScreen({ navigation, route }: any) {
       {!painel || !hoje ? (
         <View style={styles.carregando}><ActivityIndicator color={colors.primary} /></View>
       ) : (
-        <ScrollView contentContainerStyle={[styles.conteudo, { paddingBottom: 60 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.conteudo, { paddingBottom: 120 + insets.bottom }]} showsVerticalScrollIndicator={false}>
           {(painel.usaExemplo || (painel.usaExemploSaude && modoSaude() === "simulado")) && (
             <View style={styles.exemplo}>
               <Feather name="info" size={14} color="#6B4500" />
@@ -289,7 +290,7 @@ export default function HistoricoScreen({ navigation, route }: any) {
                   {hoje.passos !== undefined && <View style={styles.duplaItem}><Text style={styles.kpiValor}>{fmt(hoje.passos)}</Text><Text style={styles.kpiRotulo}>passos</Text></View>}
                 </View>
                 {hoje.treinos.map((t) => (
-                  <Text key={t.id} style={styles.linhaInfo}>• {t.tipo} · {t.minutos} min · ≈ {t.kcal} kcal</Text>
+                  <Text key={t.id} style={styles.linhaInfo}>• {t.tipo} · {formatarDuracao(t.minutos)} · ≈ {t.kcal} kcal</Text>
                 ))}
               </View>
             ) : (
@@ -313,6 +314,7 @@ export default function HistoricoScreen({ navigation, route }: any) {
           </View>
         </ScrollView>
       )}
+      <BarraInferior ativa="Historico" />
     </View>
   );
 }
