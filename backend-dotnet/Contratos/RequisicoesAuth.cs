@@ -62,3 +62,15 @@ public sealed class RedefinirSenhaRequest
     [MaxLength(72, ErrorMessage = "Senha longa demais")]
     public string NovaSenha { get; set; } = "";
 }
+
+public sealed class AlterarSenhaRequest
+{
+    [Required(ErrorMessage = "Informe a senha atual")]
+    [MaxLength(72, ErrorMessage = "Senha longa demais")]
+    public string SenhaAtual { get; set; } = "";
+
+    [Required(ErrorMessage = "Informe a nova senha")]
+    [MinLength(8, ErrorMessage = "A senha precisa de pelo menos 8 caracteres")]
+    [MaxLength(72, ErrorMessage = "Senha longa demais")]
+    public string NovaSenha { get; set; } = "";
+}

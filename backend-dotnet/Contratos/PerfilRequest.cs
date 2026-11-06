@@ -47,6 +47,14 @@ public sealed class PerfilRequest
 
     public bool PraticaExercicio { get; set; }
 
+    /// <summary>
+    /// Opcional: apps antigos não enviam. RegularExpression ignora nulo, ao
+    /// contrário de AllowedValues, que recusaria a ausência do campo.
+    /// </summary>
+    [RegularExpression("^(sedentario|leve|moderado|intenso|muito_intenso)$",
+        ErrorMessage = "Nível de atividade inválido")]
+    public string? NivelAtividade { get; set; }
+
     [MaxLength(300, ErrorMessage = "Texto de intolerâncias longo demais")]
     public string? Intolerancias { get; set; }
 

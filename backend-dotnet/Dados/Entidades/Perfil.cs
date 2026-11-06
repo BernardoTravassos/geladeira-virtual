@@ -33,5 +33,8 @@ public partial class Perfil
 
     public decimal? PesoKg { get; set; }
 
+    /// <summary>sedentario | leve | moderado | intenso | muito_intenso (base do cálculo de calorias).</summary>
+    public string? NivelAtividade { get; set; }
+
     public virtual Usuario Usuario { get; set; } = null!;
 }

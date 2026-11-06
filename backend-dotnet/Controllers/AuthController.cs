@@ -195,6 +195,60 @@ public sealed class AuthController(
         return Ok(new { message = "Senha alterada com sucesso" });
     }
 
+    // ───────────────────────── conta (logado) ─────────────────────────
+
+    /// <summary>Dados da conta para a tela de perfil.</summary>
+    [HttpGet("me")]
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    public async Task<IActionResult> MinhaConta()
+    {
+        var usuario = await banco.Usuarios.AsNoTracking().SingleOrDefaultAsync(u => u.Id == UsuarioLogado);
+        if (usuario is null) return Unauthorized(new { error = "Sessão inválida" });
+
+        return Ok(new
+        {
+            email = usuario.Email,
+            criado_em = DateTime.SpecifyKind(usuario.CriadoEm, DateTimeKind.Utc)
+                .ToString("yyyy-MM-ddTHH:mm:ss.fffZ", System.Globalization.CultureInfo.InvariantCulture),
+        });
+    }
+
+    /// <summary>
+    /// Troca de senha com a pessoa logada. Exige a senha ATUAL: um celular
+    /// emprestado ou esquecido aberto não deve bastar para tomar a conta.
+    /// Invalida as outras sessões (TokenVersao++) e devolve um token novo para
+    /// a sessão atual continuar valendo.
+    /// </summary>
+    [HttpPost("change-password")]
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
+    public async Task<IActionResult> AlterarSenha([FromBody] AlterarSenhaRequest requisicao)
+    {
+        var usuario = await banco.Usuarios.SingleOrDefaultAsync(u => u.Id == UsuarioLogado);
+        if (usuario is null) return Unauthorized(new { error = "Sessão inválida" });
+
+        if (!ServicoSenha.Confere(requisicao.SenhaAtual, usuario.SenhaHash))
+        {
+            return BadRequest(new { error = "A senha atual está incorreta." });
+        }
+
+        if (requisicao.SenhaAtual == requisicao.NovaSenha)
+        {
+            return BadRequest(new { error = "A nova senha precisa ser diferente da atual." });
+        }
+
+        usuario.SenhaHash = ServicoSenha.Gerar(requisicao.NovaSenha);
+        usuario.TokenVersao++;
+        await banco.SaveChangesAsync();
+
+        log.LogInformation("Senha alterada pela própria pessoa; outras sessões invalidadas (usuário {Id})", usuario.Id);
+
+        return Ok(new { message = "Senha alterada com sucesso", token = jwt.Gerar(usuario.Id, usuario.TokenVersao) });
+    }
+
+    private Guid UsuarioLogado =>
+        Guid.Parse(User.FindFirst(AutenticacaoExtensoes.ClaimUsuarioId)!.Value);
+
     // ───────────────────────────── auxiliares ───────────────────────────
 
     /// <summary>

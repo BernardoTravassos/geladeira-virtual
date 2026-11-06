@@ -160,6 +160,11 @@ namespace GeladeiraVirtual.Api.Dados.Migrations
                         .HasColumnType("text")
                         .HasColumnName("intolerancias");
 
+                    b.Property<string>("NivelAtividade")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("nivel_atividade");
+
                     b.Property<string>("Nome")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")

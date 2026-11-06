@@ -46,7 +46,11 @@ public sealed class ProfileController(GeladeiraContext banco) : ControllerBase
         perfil.AlturaCm = (int)requisicao.AlturaCm;
         perfil.PesoKg = requisicao.PesoKg;
         perfil.Objetivo = requisicao.Objetivo;
-        perfil.PraticaExercicio = requisicao.PraticaExercicio;
+        perfil.NivelAtividade = requisicao.NivelAtividade;
+        // Com o nível informado, ele manda; o booleano antigo fica coerente com ele.
+        perfil.PraticaExercicio = requisicao.NivelAtividade is null
+            ? requisicao.PraticaExercicio
+            : requisicao.NivelAtividade != "sedentario";
         // Texto vazio vira nulo: "sem intolerância" e "" são a mesma coisa.
         perfil.Intolerancias = string.IsNullOrWhiteSpace(requisicao.Intolerancias)
             ? null
@@ -91,6 +95,7 @@ public sealed class ProfileController(GeladeiraContext banco) : ControllerBase
         peso_kg = p.PesoKg?.ToString(CultureInfo.InvariantCulture),
         objetivo = p.Objetivo,
         pratica_exercicio = p.PraticaExercicio,
+        nivel_atividade = p.NivelAtividade,
         intolerancias = p.Intolerancias,
         vegano = p.Vegano,
         preferencia_preparo = p.PreferenciaPreparo,

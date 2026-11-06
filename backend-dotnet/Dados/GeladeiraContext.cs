@@ -94,6 +94,9 @@ public partial class GeladeiraContext : DbContext
             entity.Property(e => e.Nome)
                 .HasMaxLength(255)
                 .HasColumnName("nome");
+            entity.Property(e => e.NivelAtividade)
+                .HasMaxLength(20)
+                .HasColumnName("nivel_atividade");
             entity.Property(e => e.Objetivo)
                 .HasMaxLength(50)
                 .HasColumnName("objetivo");
