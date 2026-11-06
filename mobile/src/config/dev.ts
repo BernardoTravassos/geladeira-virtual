@@ -47,4 +47,29 @@ export const DEV = {
    * ⚠️ Desligue antes de publicar: seria mostrar dados falsos como se fossem reais.
    */
   SIMULAR_IA_PRATO: true,
+
+  /**
+   * Preenche os dias passados do Histórico com dados de EXEMPLO, para o painel
+   * não aparecer vazio enquanto o app é novo. Dias em que você registrou de
+   * verdade nunca são trocados, e hoje nunca recebe exemplo.
+   *
+   *  true  → o painel mostra um aviso "dados de exemplo" e usa números inventados.
+   *  false → só aparece o que a pessoa registrou.
+   *
+   * ⚠️ Desligue antes de publicar.
+   */
+  HISTORICO_DE_EXEMPLO: true,
+
+  /**
+   * Finge a leitura do smartwatch / Apple Health / Health Connect (passos,
+   * calorias gastas e treinos). O app só consegue ler esses dados de verdade
+   * num build próprio — no Expo Go não.
+   *
+   *  true  → depois de "conectar", aparecem dados inventados (os dias de hoje só
+   *          ganham passos e gasto; treino de hoje só entra se você registrar).
+   *  false → só vale o que a pessoa registrar à mão.
+   *
+   * ⚠️ Desligue antes de publicar.
+   */
+  SIMULAR_SMARTWATCH: true,
 };

@@ -78,14 +78,22 @@ export const api = axios.create({
 const CHAVE_PERFIL_DEMO = "@geladeira:perfilDemo";
 const TOKEN_DEMO = "token-demonstracao";
 
+const CHAVE_EMAIL_DEMO = "@geladeira:emailDemo";
+
 export async function login(email: string, senha: string) {
-  if (DEV.MODO_DEMO) return TOKEN_DEMO;
+  if (DEV.MODO_DEMO) {
+    await AsyncStorage.setItem(CHAVE_EMAIL_DEMO, email.trim().toLowerCase());
+    return TOKEN_DEMO;
+  }
   const response = await api.post("/auth/login", { email, senha });
   return response.data.token as string;
 }
 
 export async function register(email: string, senha: string) {
-  if (DEV.MODO_DEMO) return TOKEN_DEMO;
+  if (DEV.MODO_DEMO) {
+    await AsyncStorage.setItem(CHAVE_EMAIL_DEMO, email.trim().toLowerCase());
+    return TOKEN_DEMO;
+  }
   const response = await api.post("/auth/register", { email, senha });
   return response.data.token as string;
 }
@@ -98,13 +106,18 @@ export async function saveProfile(dados: {
   pesoKg: number;
   objetivo: string;
   praticaExercicio: boolean;
+  /** sedentario | leve | moderado | intenso | muito_intenso */
+  nivelAtividade?: string;
   intolerancias?: string;
   vegano: boolean;
   preferenciaPreparo: string;
   tempoDisponivel: string;
 }) {
   if (DEV.MODO_DEMO) {
-    await AsyncStorage.setItem(CHAVE_PERFIL_DEMO, JSON.stringify(dados));
+    // Guarda no MESMO formato que a API devolve (snake_case). Antes ficava em
+    // camelCase e o app não achava `peso_kg`/`altura_cm`: as metas eram
+    // calculadas com peso, altura e idade padrão, ignorando o que a pessoa disse.
+    await AsyncStorage.setItem(CHAVE_PERFIL_DEMO, JSON.stringify(paraFormatoDaApi(dados)));
     return dados;
   }
   const token = await AsyncStorage.getItem("@geladeira:token");
@@ -114,11 +127,31 @@ export async function saveProfile(dados: {
   return response.data;
 }
 
+function paraFormatoDaApi(d: any) {
+  return {
+    nome: d.nome,
+    idade: d.idade,
+    sexo: d.sexo,
+    altura_cm: d.alturaCm,
+    peso_kg: String(d.pesoKg),
+    objetivo: d.objetivo,
+    pratica_exercicio: d.praticaExercicio,
+    nivel_atividade: d.nivelAtividade ?? null,
+    intolerancias: d.intolerancias ?? null,
+    vegano: d.vegano,
+    preferencia_preparo: d.preferenciaPreparo,
+    tempo_disponivel: d.tempoDisponivel,
+  };
+}
+
 // Retorna o perfil do usuário logado, ou null se ele ainda não preencheu o wizard (404).
 export async function getProfile() {
   if (DEV.MODO_DEMO) {
     const salvo = await AsyncStorage.getItem(CHAVE_PERFIL_DEMO);
-    return salvo ? JSON.parse(salvo) : null;
+    if (!salvo) return null;
+    const perfil = JSON.parse(salvo);
+    // Perfis salvos antes da correção estavam em camelCase: converte ao ler.
+    return perfil.alturaCm !== undefined ? paraFormatoDaApi(perfil) : perfil;
   }
   const token = await AsyncStorage.getItem("@geladeira:token");
   try {
@@ -255,4 +288,29 @@ async function simularAnalisePrato(): Promise<EstimativaPrato> {
     ...prato,
     aviso: "Estimativa aproximada feita por IA a partir da foto.",
   };
+}
+
+/** Dados da conta (e-mail) para a tela de perfil. */
+export async function getConta(): Promise<{ email: string }> {
+  if (DEV.MODO_DEMO) {
+    return { email: (await AsyncStorage.getItem(CHAVE_EMAIL_DEMO)) ?? "conta de demonstração" };
+  }
+  const token = await AsyncStorage.getItem("@geladeira:token");
+  const response = await api.get("/auth/me", { headers: { Authorization: `Bearer ${token}` } });
+  return response.data;
+}
+
+/**
+ * Troca a senha com a pessoa logada. O servidor devolve um token novo (as
+ * outras sessões são encerradas), que passa a ser o da sessão atual.
+ */
+export async function alterarSenha(senhaAtual: string, novaSenha: string) {
+  if (DEV.MODO_DEMO) return; // em demonstração não existe senha de verdade
+  const token = await AsyncStorage.getItem("@geladeira:token");
+  const response = await api.post(
+    "/auth/change-password",
+    { senhaAtual, novaSenha },
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (response.data?.token) await AsyncStorage.setItem("@geladeira:token", response.data.token);
 }

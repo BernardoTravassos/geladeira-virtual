@@ -4,6 +4,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { colors } from "../theme/colors";
 import { grafico } from "../theme/graficos";
 
+export const COR_EXCESSO = "#F4A0A0"; // vermelho claro
+
 type Props = {
   rotulo: string;
   atual: number;
@@ -12,6 +14,12 @@ type Props = {
   cor?: string;
   /** Atraso para escalonar vários medidores na mesma tela. */
   atraso?: number;
+  /**
+   * Quando `atual` passa da meta, a parte que sobra aparece em vermelho claro.
+   * Use em limites que se pretende respeitar (macros, calorias). NÃO use onde
+   * passar é bom (passos, água).
+   */
+  avisarExcesso?: boolean;
 };
 
 /**
@@ -30,8 +38,13 @@ export default function Medidor({
   unidade = "g",
   cor = colors.primaryLight,
   atraso = 0,
+  avisarExcesso = false,
 }: Props) {
-  const fracao = meta > 0 ? Math.min(atual / meta, 1) : 0;
+  const passou = avisarExcesso && meta > 0 && atual > meta;
+  // Com excesso, a trilha passa a representar o total consumido: a parte até a
+  // meta fica na cor normal e o que sobrou, em vermelho claro.
+  const fracao = meta > 0 ? (passou ? meta / atual : Math.min(atual / meta, 1)) : 0;
+  const fracaoExcesso = passou ? 1 - meta / atual : 0;
   const progresso = useRef(new Animated.Value(0)).current;
 
   useFocusEffect(
@@ -51,26 +64,33 @@ export default function Medidor({
     <View style={styles.caixa}>
       <View style={styles.linhaTopo}>
         <Text style={styles.rotulo}>{rotulo}</Text>
-        <Text style={styles.valor}>
+        <Text style={[styles.valor, passou && styles.valorExcesso]}>
           {atual.toLocaleString("pt-BR")}
           <Text style={styles.meta}>
             /{meta.toLocaleString("pt-BR")} {unidade}
           </Text>
+          {passou && <Text style={styles.excessoTxt}>  +{Math.round(atual - meta).toLocaleString("pt-BR")}</Text>}
         </Text>
       </View>
       <View style={styles.trilha}>
         <Animated.View
           style={[
             styles.preenchimento,
+            passou && styles.semBordaDireita,
             {
               backgroundColor: cor,
-              width: progresso.interpolate({
-                inputRange: [0, 1],
-                outputRange: ["0%", `${fracao * 100}%`],
-              }),
+              width: progresso.interpolate({ inputRange: [0, 1], outputRange: ["0%", `${fracao * 100}%`] }),
             },
           ]}
         />
+        {passou && (
+          <Animated.View
+            style={[
+              styles.excesso,
+              { width: progresso.interpolate({ inputRange: [0, 1], outputRange: ["0%", `${fracaoExcesso * 100}%`] }) },
+            ]}
+          />
+        )}
       </View>
     </View>
   );
@@ -82,6 +102,10 @@ const styles = StyleSheet.create({
   rotulo: { fontSize: 11, color: colors.textSecondary, fontWeight: "600" },
   valor: { fontSize: 12, fontWeight: "700", color: colors.textPrimary },
   meta: { fontSize: 11, fontWeight: "400", color: colors.textSecondary },
-  trilha: { height: 6, borderRadius: 3, backgroundColor: grafico.trilha, overflow: "hidden" },
+  trilha: { height: 6, borderRadius: 3, backgroundColor: grafico.trilha, overflow: "hidden", flexDirection: "row" },
   preenchimento: { height: "100%", borderRadius: 3 },
+  semBordaDireita: { borderTopRightRadius: 0, borderBottomRightRadius: 0 },
+  excesso: { height: "100%", backgroundColor: COR_EXCESSO },
+  valorExcesso: { color: "#C0392B" },
+  excessoTxt: { fontSize: 11, fontWeight: "700", color: "#C0392B" },
 });

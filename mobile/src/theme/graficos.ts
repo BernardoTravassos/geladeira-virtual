@@ -16,6 +16,7 @@
 export const serie = {
   consumidas: "#1BAF7A",
   gastas: "#EB6834",
+  agua: "#35A7E8",
 };
 
 /** Trilha de fundo dos medidores e linha de base dos gráficos. */

@@ -12,6 +12,10 @@ type Props = {
   unidade?: string;
   /** Linha horizontal de meta, para "quanto falta" ficar visível sem contas. */
   referencia?: { valor: number; rotulo: string };
+  /** Largura da coluna (px). Padrão: 18 para uma série, 11 para duas. Máx. 24. */
+  larguraBarra?: number;
+  /** Mostra um rótulo do eixo a cada N colunas (para 30 dias, 5). */
+  rotuloACada?: number;
 };
 
 const ALTURA = 116;
@@ -34,7 +38,7 @@ const ATRASO_ENTRE_COLUNAS = 45;
  * não aceita. Com 14 colunas pequenas o custo é irrelevante; o driver nativo
  * só valeria com transform, que complicaria ancorar o crescimento na base.
  */
-export default function GraficoColunas({ rotulos, series, unidade = "", referencia }: Props) {
+export default function GraficoColunas({ rotulos, series, unidade = "", referencia, larguraBarra, rotuloACada = 1 }: Props) {
   const progresso = useRef(rotulos.map(() => new Animated.Value(0))).current;
 
   useFocusEffect(
@@ -90,7 +94,7 @@ export default function GraficoColunas({ rotulos, series, unidade = "", referenc
               {ehUltimo && (
                 // Rótulo direto só no dia de hoje: número em toda coluna vira
                 // ruído e ninguém lê.
-                <Text style={styles.rotuloDireto}>
+                <Text numberOfLines={1} style={styles.rotuloDireto}>
                   {series[0].valores[i].toLocaleString("pt-BR")}
                 </Text>
               )}
@@ -103,6 +107,7 @@ export default function GraficoColunas({ rotulos, series, unidade = "", referenc
                       style={[
                         styles.barra,
                         series.length === 1 && styles.barraLarga,
+                        larguraBarra ? { width: Math.min(larguraBarra, 24) } : null,
                         {
                           backgroundColor: s.cor,
                           height: progresso[i].interpolate({
@@ -115,7 +120,7 @@ export default function GraficoColunas({ rotulos, series, unidade = "", referenc
                   );
                 })}
               </View>
-              <Text style={[styles.dia, ehUltimo && styles.diaHoje]}>{rotulo}</Text>
+              <Text numberOfLines={1} style={[styles.dia, ehUltimo && styles.diaHoje]}>{i % rotuloACada === 0 || ehUltimo ? rotulo : ""}</Text>
             </View>
           );
         })}
@@ -144,11 +149,11 @@ const styles = StyleSheet.create({
   referenciaTexto: { fontSize: 9, color: colors.textSecondary },
 
   grupo: { flex: 1, alignItems: "center", justifyContent: "flex-end" },
-  rotuloDireto: { fontSize: 9, fontWeight: "700", color: colors.textPrimary, marginBottom: 3 },
+  rotuloDireto: { width: 40, textAlign: "center", fontSize: 9, fontWeight: "700", color: colors.textPrimary, marginBottom: 3 },
   // A folga de 2px é o que separa as barras — nunca um contorno.
   barras: { flexDirection: "row", alignItems: "flex-end", gap: 2 },
   barra: { width: 11, borderTopLeftRadius: 4, borderTopRightRadius: 4 },
   barraLarga: { width: 18 },   // série única pode ocupar mais, ainda abaixo do teto de 24px
-  dia: { fontSize: 10, color: colors.textSecondary, marginTop: 7 },
+  dia: { fontSize: 10, color: colors.textSecondary, marginTop: 7, width: 34, textAlign: "center" },
   diaHoje: { color: colors.textPrimary, fontWeight: "700" },
 });

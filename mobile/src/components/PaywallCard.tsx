@@ -1,5 +1,6 @@
-import React from "react";
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Pressable } from "react-native";
+import React, { useEffect, useMemo, useRef } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Animated, Dimensions, Modal, PanResponder, View, Text, TouchableOpacity, StyleSheet, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { colors } from "../theme/colors";
 
@@ -130,6 +131,41 @@ export default function PaywallCard({
   tempoDisponivel,
   diasGratis,
 }: Props) {
+  const insets = useSafeAreaInsets();
+  // Arrastar o painel para baixo fecha. O gesto vale no painel inteiro (não só
+  // no puxador): quem puxa pelo meio do card espera que ele desça também.
+  const deslocamento = useRef(new Animated.Value(0)).current;
+  const onFecharRef = useRef(onFechar);
+  onFecharRef.current = onFechar;
+
+  useEffect(() => {
+    if (visivel) deslocamento.setValue(0); // reabre sempre na posição certa
+  }, [visivel, deslocamento]);
+
+  const gesto = useMemo(
+    () =>
+      PanResponder.create({
+        // Só assume o toque quando o movimento é claramente vertical para baixo;
+        // assim os botões continuam recebendo toques normais.
+        onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+        onPanResponderMove: (_, g) => deslocamento.setValue(Math.max(g.dy, 0)),
+        onPanResponderRelease: (_, g) => {
+          if (g.dy > 120 || g.vy > 0.8) {
+            Animated.timing(deslocamento, {
+              toValue: Dimensions.get("window").height,
+              duration: 180,
+              useNativeDriver: true,
+            }).start(() => onFecharRef.current());
+          } else {
+            Animated.spring(deslocamento, { toValue: 0, useNativeDriver: true, bounciness: 6 }).start();
+          }
+        },
+        onPanResponderTerminate: () =>
+          Animated.spring(deslocamento, { toValue: 0, useNativeDriver: true }).start(),
+      }),
+    [deslocamento],
+  );
+
   const plural = consultasPorDia === 1 ? "é 1 consulta" : `são ${consultasPorDia} consultas`;
   const beneficios = montarBeneficios({
     metaCalorias,
@@ -159,7 +195,8 @@ export default function PaywallCard({
       {/* Toque fora fecha — gesto que todo mundo já espera de um painel. */}
       <Pressable style={styles.fundo} onPress={onFechar}>
         {/* Toque dentro NÃO fecha: o Pressable interno absorve o evento. */}
-        <Pressable style={styles.painel} onPress={() => {}}>
+        <Animated.View style={[styles.painel, { paddingBottom: 28 + insets.bottom, transform: [{ translateY: deslocamento }] }]} {...gesto.panHandlers}>
+          <Pressable style={styles.conteudo} onPress={() => {}}>
           <View style={styles.puxador} />
 
           <View style={styles.icone}>
@@ -203,7 +240,8 @@ export default function PaywallCard({
           >
             <Text style={styles.botaoDepois}>Volto amanhã (grátis)</Text>
           </TouchableOpacity>
-        </Pressable>
+          </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
@@ -224,6 +262,7 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     alignItems: "center",
   },
+  conteudo: { alignSelf: "stretch", alignItems: "center" },
   puxador: {
     width: 38,
     height: 4,

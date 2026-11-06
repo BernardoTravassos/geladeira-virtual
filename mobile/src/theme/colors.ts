@@ -9,3 +9,18 @@ export const colors = {
   textSecondary: "#6B6B6B",
   border: "#E7E3D8",
 };
+
+// Sombra suave e esverdeada, para os cartões "flutuarem" sobre o fundo.
+export const sombra = {
+  shadowColor: "#1F5D3A",
+  shadowOpacity: 0.1,
+  shadowRadius: 14,
+  shadowOffset: { width: 0, height: 5 },
+  elevation: 3,
+} as const;
+
+// Verde mais fundo, para dar profundidade aos degradês de destaque.
+export const degrade = {
+  hero: ["#17482D", "#1F5D3A", "#2F7B50"] as const,
+  acento: ["#FF8A57", "#F2622B"] as const,
+};
