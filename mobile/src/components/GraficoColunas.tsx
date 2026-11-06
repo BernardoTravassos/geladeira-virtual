@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, Animated, Easing } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { colors } from "../theme/colors";
@@ -39,7 +39,10 @@ const ATRASO_ENTRE_COLUNAS = 45;
  * só valeria com transform, que complicaria ancorar o crescimento na base.
  */
 export default function GraficoColunas({ rotulos, series, unidade = "", referencia, larguraBarra, rotuloACada = 1 }: Props) {
-  const progresso = useRef(rotulos.map(() => new Animated.Value(0))).current;
+  // Um valor animado por coluna. Recalcula quando o NÚMERO de colunas muda: antes
+  // ele era criado uma vez só, e se os dados chegassem depois com mais colunas
+  // (7 dias → 30 dias), progresso[i] ficava indefinido e o app quebrava.
+  const progresso = useMemo(() => rotulos.map(() => new Animated.Value(0)), [rotulos.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useFocusEffect(
     useCallback(() => {

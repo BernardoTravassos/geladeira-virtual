@@ -30,7 +30,10 @@ export default function HistoricoScreen({ navigation, route }: any) {
   const insets = useSafeAreaInsets();
   const [periodo, setPeriodo] = useState<PeriodoHistorico>(route.params?.periodo ?? "semana");
   const [perfil, setPerfil] = useState<PerfilApi | null>(null);
-  const [dias, setDias] = useState<DiaResumo[] | null>(null);
+  // Guarda de qual período são os dias carregados. Sem isso, ao trocar de aba
+  // a tela montava o painel com o período NOVO e os dias do período ANTIGO.
+  const [carregado, setCarregado] = useState<{ periodo: PeriodoHistorico; dias: DiaResumo[] } | null>(null);
+  const dias = carregado?.periodo === periodo ? carregado.dias : null;
 
   useEffect(() => {
     getProfile().then(setPerfil).catch(() => {});
@@ -42,8 +45,7 @@ export default function HistoricoScreen({ navigation, route }: any) {
   useFocusEffect(
     useCallback(() => {
       let ativo = true;
-      setDias(null);
-      carregarHistorico(periodo, metas.calorias, metaAgua, Number(perfil?.peso_kg) || 70).then((d) => ativo && setDias(d));
+      carregarHistorico(periodo, metas.calorias, metaAgua, Number(perfil?.peso_kg) || 70).then((d) => ativo && setCarregado({ periodo, dias: d }));
       return () => { ativo = false; };
     }, [periodo, metas.calorias, metaAgua, perfil?.peso_kg]),
   );
