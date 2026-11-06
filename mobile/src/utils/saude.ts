@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DEV } from "../config/dev";
 import { chaveData } from "./dia";
+import { lerHealthConnect, nativoDisponivel, pedirPermissaoHealthConnect } from "./healthConnect";
 
 export type OrigemTreino = "manual" | "smartwatch" | "gymrats";
 
@@ -38,6 +39,29 @@ export const TIPOS_TREINO: { nome: string; met: number; icone: "activity" | "win
 export function estimarKcalTreino(tipo: string, minutos: number, pesoKg: number): number {
   const met = TIPOS_TREINO.find((t) => t.nome === tipo)?.met ?? 5;
   return Math.round(met * pesoKg * (minutos / 60));
+}
+
+/**
+ * De onde vêm os dados do relógio:
+ *  "real"     → Health Connect (app instalado no Android)
+ *  "simulado" → dados inventados (DEV.SIMULAR_SMARTWATCH, p. ex. no Expo Go)
+ *  "nenhum"   → só vale o que a pessoa registra à mão
+ */
+export type ModoSaude = "real" | "simulado" | "nenhum";
+export const modoSaude = (): ModoSaude => (nativoDisponivel ? "real" : DEV.SIMULAR_SMARTWATCH ? "simulado" : "nenhum");
+
+/** Conecta: pede a permissão de verdade (real) ou só marca como conectado (simulado). */
+export async function conectarSaude(): Promise<{ ok: true } | { ok: false; mensagem: string }> {
+  const modo = modoSaude();
+  if (modo === "nenhum") {
+    return { ok: false, mensagem: "A leitura do smartwatch só funciona no app instalado, no Android. Por enquanto, registre seus treinos à mão." };
+  }
+  if (modo === "real") {
+    const r = await pedirPermissaoHealthConnect();
+    if (!r.ok) return r;
+  }
+  await definirSmartwatchConectado(true);
+  return { ok: true };
 }
 
 const CHAVE_CONECTADO = "@geladeira:smartwatch:conectado";
@@ -119,6 +143,7 @@ function simularDia(data: Date, pesoKg: number, ehHoje: boolean) {
 /** Saúde de várias datas de uma vez (usado pelo Histórico). */
 export async function lerSaudeDeDatas(datas: Date[], pesoKg: number): Promise<SaudeDoDia[]> {
   const conectado = await smartwatchConectado();
+  const modo = modoSaude();
   let salvos: [string, string | null][] = [];
   try {
     salvos = [...(await AsyncStorage.multiGet(datas.map(chaveTreinos)))];
@@ -127,17 +152,33 @@ export async function lerSaudeDeDatas(datas: Date[], pesoKg: number): Promise<Sa
   }
   const hoje = chaveData(new Date());
 
+  // Dados reais do Health Connect, de uma vez para o período todo.
+  let reais: Awaited<ReturnType<typeof lerHealthConnect>> | null = null;
+  if (conectado && modo === "real") {
+    try {
+      reais = await lerHealthConnect(datas, (tipo, min) => estimarKcalTreino(tipo, min, pesoKg));
+    } catch {
+      reais = null; // sem leitura: segue só com o que foi registrado à mão
+    }
+  }
+
   return datas.map((data, i) => {
     const manuais = lerTreinosSalvos(salvos[i]?.[1] ?? null);
-    const sim = conectado && DEV.SIMULAR_SMARTWATCH ? simularDia(data, pesoKg, chaveData(data) === hoje) : null;
-    const treinos = [...manuais, ...(sim?.treinos ?? [])];
-    const kcalTreinos = treinos.reduce((a, t) => a + t.kcal, 0);
+    const sim = conectado && modo === "simulado" ? simularDia(data, pesoKg, chaveData(data) === hoje) : null;
+    const real = reais?.get(chaveData(data));
+    const doRelogio = real?.treinos ?? sim?.treinos ?? [];
+    const treinos = [...manuais, ...doRelogio];
+
+    // Treinos manuais não estão no relógio, então o gasto deles soma por fora.
+    const kcalManuais = manuais.reduce((a, t) => a + t.kcal, 0);
+    const kcalRelogio = real ? real.ativasKcal : sim ? sim.gastoDiario + doRelogio.reduce((a, t) => a + t.kcal, 0) : 0;
+
     return {
       conectado,
       treinos,
       treinou: treinos.length > 0,
-      passos: sim?.passos,
-      caloriasGastas: Math.round(kcalTreinos + (sim?.gastoDiario ?? 0)),
+      passos: real?.passos ?? sim?.passos,
+      caloriasGastas: Math.round(kcalManuais + kcalRelogio),
     };
   });
 }

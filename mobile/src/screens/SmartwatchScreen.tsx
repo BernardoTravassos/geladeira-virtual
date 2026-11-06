@@ -5,9 +5,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, sombra, degrade } from "../theme/colors";
-import { DEV } from "../config/dev";
 import { useFeedback } from "../components/Feedback";
-import { definirSmartwatchConectado, smartwatchConectado } from "../utils/saude";
+import { conectarSaude, definirSmartwatchConectado, modoSaude, smartwatchConectado } from "../utils/saude";
 
 const LEEMOS: { icone: keyof typeof Feather.glyphMap; texto: string }[] = [
   { icone: "check-circle", texto: "Se você treinou no dia, e qual treino" },
@@ -22,6 +21,7 @@ export default function SmartwatchScreen({ navigation }: any) {
 
   useFocusEffect(useCallback(() => { smartwatchConectado().then(setConectado); }, []));
 
+  const modo = modoSaude();
   const fonte = Platform.OS === "ios" ? "Apple Saúde (Apple Health)" : "Health Connect";
 
   function conectar() {
@@ -33,9 +33,10 @@ export default function SmartwatchScreen({ navigation }: any) {
         {
           text: "Permitir",
           onPress: async () => {
-            await definirSmartwatchConectado(true);
+            const r = await conectarSaude();
+            if (!r.ok) return Alert.alert("Não foi possível conectar", r.mensagem);
             setConectado(true);
-            feedback.sucesso("Smartwatch conectado!", DEV.SIMULAR_SMARTWATCH ? "Versão de testes: os dados são simulados." : undefined);
+            feedback.sucesso("Smartwatch conectado!", modo === "simulado" ? "Versão de testes: os dados são simulados." : undefined);
           },
         },
       ],
@@ -66,7 +67,7 @@ export default function SmartwatchScreen({ navigation }: any) {
         </LinearGradient>
 
         <View style={styles.corpo}>
-          {DEV.SIMULAR_SMARTWATCH && (
+          {modo === "simulado" && (
             <View style={styles.teste}>
               <Feather name="info" size={14} color="#6B4500" />
               <Text style={styles.testeTxt}>Versão de testes: ao conectar, os dados do relógio são simulados. A leitura real exige uma versão instalada do app, fora do Expo Go.</Text>

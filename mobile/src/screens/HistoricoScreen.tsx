@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { colors } from "../theme/colors";
-import { DEV } from "../config/dev";
+import { modoSaude } from "../utils/saude";
 import { serie } from "../theme/graficos";
 import GraficoColunas from "../components/GraficoColunas";
 import Medidor from "../components/Medidor";
@@ -165,7 +165,7 @@ export default function HistoricoScreen({ navigation, route }: any) {
         <View style={styles.carregando}><ActivityIndicator color={colors.primary} /></View>
       ) : (
         <ScrollView contentContainerStyle={[styles.conteudo, { paddingBottom: 60 + insets.bottom }]} showsVerticalScrollIndicator={false}>
-          {(painel.usaExemplo || (painel.usaExemploSaude && DEV.SIMULAR_SMARTWATCH)) && (
+          {(painel.usaExemplo || (painel.usaExemploSaude && modoSaude() === "simulado")) && (
             <View style={styles.exemplo}>
               <Feather name="info" size={14} color="#6B4500" />
               <Text style={styles.exemploTxt}>Os dias anteriores são dados de exemplo, só para demonstrar o painel.</Text>
