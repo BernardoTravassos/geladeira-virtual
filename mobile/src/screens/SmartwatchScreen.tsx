@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, sombra, degrade } from "../theme/colors";
 import { useFeedback } from "../components/Feedback";
+import { abrirDadosHealthConnect } from "../utils/healthConnect";
 import { conectarSaude, definirSmartwatchConectado, modoSaude, smartwatchConectado } from "../utils/saude";
 
 const LEEMOS: { icone: keyof typeof Feather.glyphMap; texto: string }[] = [
@@ -95,6 +96,18 @@ export default function SmartwatchScreen({ navigation }: any) {
             </Text>
           </View>
 
+          {conectado && modo === "real" && (
+            <TouchableOpacity
+              style={styles.verDados}
+              activeOpacity={0.8}
+              onPress={() => { if (!abrirDadosHealthConnect()) Alert.alert("Não foi possível abrir", "Abra o Health Connect pelas Configurações do celular."); }}
+              accessibilityRole="button"
+            >
+              <Feather name="external-link" size={16} color={colors.primary} />
+              <Text style={styles.verDadosTxt}>Ver meus dados no Health Connect</Text>
+            </TouchableOpacity>
+          )}
+
           {conectado ? (
             <TouchableOpacity style={styles.desconectar} onPress={desconectar} activeOpacity={0.8}>
               <Text style={styles.desconectarTxt}>Desconectar smartwatch</Text>
@@ -136,6 +149,8 @@ const styles = StyleSheet.create({
   forte: { fontWeight: "700" },
   botao: { height: 52, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, marginTop: 6 },
   botaoTxt: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  verDados: { height: 48, borderRadius: 14, backgroundColor: "#EAF3E4", alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, marginTop: 6 },
+  verDadosTxt: { color: colors.primary, fontWeight: "700", fontSize: 14 },
   desconectar: { height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: "#F0C4BF", alignItems: "center", justifyContent: "center", marginTop: 6 },
   desconectarTxt: { color: "#C0392B", fontWeight: "700", fontSize: 14 },
 });

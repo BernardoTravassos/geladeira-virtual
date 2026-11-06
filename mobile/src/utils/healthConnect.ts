@@ -51,6 +51,21 @@ export async function pedirPermissaoHealthConnect(): Promise<ResultadoConexao> {
   }
 }
 
+/** Abre a tela do Health Connect onde se vê (e apaga) os dados gravados, por app. */
+export function abrirDadosHealthConnect(): boolean {
+  try {
+    hc().openHealthConnectDataManagement();
+    return true;
+  } catch {
+    try {
+      hc().openHealthConnectSettings();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
 export type DiaHealthConnect = { passos: number; ativasKcal: number; treinos: Treino[] };
 
 const dia0 = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());

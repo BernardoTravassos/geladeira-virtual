@@ -36,6 +36,13 @@ export const TIPOS_TREINO: { nome: string; met: number; icone: "activity" | "win
   { nome: "Outro", met: 5.0, icone: "activity" },
 ];
 
+/** 90 → "1 h 30 min"; 45 → "45 min"; 120 → "2 h". */
+export function formatarDuracao(min: number) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h === 0 ? `${m} min` : m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
 export function estimarKcalTreino(tipo: string, minutos: number, pesoKg: number): number {
   const met = TIPOS_TREINO.find((t) => t.nome === tipo)?.met ?? 5;
   return Math.round(met * pesoKg * (minutos / 60));

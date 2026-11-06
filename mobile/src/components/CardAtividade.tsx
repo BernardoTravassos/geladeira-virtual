@@ -10,9 +10,8 @@ import { colors, sombra } from "../theme/colors";
 import BarraTeclado, { ID_BARRA_TECLADO } from "./BarraTeclado";
 import { useFeedback } from "./Feedback";
 import { useChaveDoDia } from "../utils/dia";
-import { interpretarNumero } from "../utils/numeros";
 import {
-  adicionarTreinoManual, estimarKcalTreino, lerSaudeDoDia, removerTreinoManual, SaudeDoDia, TIPOS_TREINO, Treino,
+  adicionarTreinoManual, estimarKcalTreino, formatarDuracao, lerSaudeDoDia, removerTreinoManual, SaudeDoDia, TIPOS_TREINO, Treino,
 } from "../utils/saude";
 
 type Props = {
@@ -32,7 +31,8 @@ export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Pr
 
   const [aberto, setAberto] = useState(false);
   const [tipo, setTipo] = useState("Musculação");
-  const [minutos, setMinutos] = useState("");
+  const [horas, setHoras] = useState("0");
+  const [mins, setMins] = useState("45");
   const [erro, setErro] = useState("");
 
   const carregar = useCallback(() => {
@@ -42,20 +42,24 @@ export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Pr
   useFocusEffect(useCallback(() => { carregar(); }, [carregar, chaveDia]));
   useEffect(() => { carregar(); }, [carregar]);
 
-  const minutosNum = (() => {
-    const r = interpretarNumero(minutos, { artigoRotulo: "A duração", min: 5, max: 600, unidade: "min", inteiro: "proximo" });
-    return "valor" in r ? r.valor : 0;
-  })();
+  const somenteDigitos = (t: string) => t.replace(/[^0-9]/g, "");
+  const totalMin = (parseInt(horas, 10) || 0) * 60 + (parseInt(mins, 10) || 0);
+
+  function definirTotal(total: number) {
+    const t = Math.min(Math.max(total, 0), 600);
+    setHoras(String(Math.floor(t / 60)));
+    setMins(String(t % 60));
+    setErro("");
+  }
 
   async function salvar() {
-    const r = interpretarNumero(minutos, { artigoRotulo: "A duração", min: 5, max: 600, unidade: "min", inteiro: "proximo" });
-    if ("erro" in r) return setErro(r.erro);
-    const novo = await adicionarTreinoManual(tipo, r.valor, pesoKg);
+    if (totalMin < 5) return setErro("O treino precisa ter pelo menos 5 minutos.");
+    if (totalMin > 600) return setErro("A duração máxima é de 10 horas.");
+    const novo = await adicionarTreinoManual(tipo, totalMin, pesoKg);
     setAberto(false);
-    setMinutos("");
     setErro("");
     carregar();
-    feedback.sucesso("Treino registrado!", `${novo.tipo} · ${novo.minutos} min · ≈ ${novo.kcal} kcal`);
+    feedback.sucesso("Treino registrado!", `${novo.tipo} · ${formatarDuracao(novo.minutos)} · ≈ ${novo.kcal} kcal`);
   }
 
   function confirmarRemocao(t: Treino) {
@@ -87,7 +91,7 @@ export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Pr
         <TouchableOpacity key={t.id} style={styles.treino} activeOpacity={t.origem === "manual" ? 0.7 : 1} onPress={() => confirmarRemocao(t)}>
           <View style={{ flex: 1 }}>
             <Text style={styles.treinoNome}>{t.tipo}</Text>
-            <Text style={styles.treinoInfo}>{t.minutos} min · ≈ {t.kcal} kcal</Text>
+            <Text style={styles.treinoInfo}>{formatarDuracao(t.minutos)} · ≈ {t.kcal} kcal</Text>
           </View>
           <View style={styles.origem}><Text style={styles.origemTxt}>{ROTULO_ORIGEM[t.origem]}</Text></View>
         </TouchableOpacity>
@@ -143,19 +147,36 @@ export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Pr
                     </View>
                   </ScrollView>
 
-                  <Text style={styles.rotulo}>Quanto tempo (minutos)?</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={minutos}
-                    onChangeText={(t) => { setMinutos(t); setErro(""); }}
-                    keyboardType="decimal-pad"
-                    inputAccessoryViewID={ID_BARRA_TECLADO}
-                    placeholder="Ex: 45"
-                    placeholderTextColor={colors.textSecondary}
-                  />
+                  <Text style={styles.rotulo}>Quanto tempo durou?</Text>
+                  <View style={styles.relogio}>
+                    <Coluna
+                      rotulo="horas"
+                      valor={horas}
+                      onChange={(t) => { setHoras(String(Math.min(parseInt(somenteDigitos(t) || "0", 10), 10))); setErro(""); }}
+                      onMais={() => definirTotal(totalMin + 60)}
+                      onMenos={() => definirTotal(totalMin - 60)}
+                    />
+                    <Text style={styles.doisPontos}>:</Text>
+                    <Coluna
+                      rotulo="minutos"
+                      valor={mins}
+                      onChange={(t) => { setMins(String(Math.min(parseInt(somenteDigitos(t) || "0", 10), 59))); setErro(""); }}
+                      onMais={() => definirTotal(totalMin + 1)}
+                      onMenos={() => definirTotal(totalMin - 1)}
+                    />
+                  </View>
+                  <View style={styles.atalhos}>
+                    {[15, 30, 45, 60, 90, 120].map((m) => (
+                      <TouchableOpacity key={m} style={[styles.atalho, totalMin === m && styles.atalhoSel]} onPress={() => definirTotal(m)}>
+                        <Text style={[styles.atalhoTxt, totalMin === m && styles.atalhoTxtSel]}>{formatarDuracao(m)}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
 
-                  {minutosNum > 0 && !erro && (
-                    <Text style={styles.previa}>Gasto estimado: ≈ {estimarKcalTreino(tipo, minutosNum, pesoKg)} kcal</Text>
+                  {totalMin >= 5 && !erro && (
+                    <Text style={styles.previa}>
+                      {formatarDuracao(totalMin)} · gasto estimado ≈ {estimarKcalTreino(tipo, totalMin, pesoKg)} kcal
+                    </Text>
                   )}
                   {!!erro && <Text style={styles.erro}>{erro}</Text>}
                   <Text style={styles.nota}>Estimativa pelo tipo de treino, tempo e seu peso. Com o smartwatch conectado, o gasto vem do relógio.</Text>
@@ -170,6 +191,30 @@ export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Pr
         </KeyboardAvoidingView>
         <BarraTeclado />
       </Modal>
+    </View>
+  );
+}
+
+function Coluna({ rotulo, valor, onChange, onMais, onMenos }: { rotulo: string; valor: string; onChange: (t: string) => void; onMais: () => void; onMenos: () => void }) {
+  return (
+    <View style={styles.coluna}>
+      <TouchableOpacity style={styles.seta} onPress={onMais} accessibilityLabel={`Mais ${rotulo}`}>
+        <Feather name="chevron-up" size={22} color={colors.primary} />
+      </TouchableOpacity>
+      <TextInput
+        style={styles.numeroGrande}
+        value={valor.padStart(2, "0")}
+        onChangeText={onChange}
+        keyboardType="number-pad"
+        inputAccessoryViewID={ID_BARRA_TECLADO}
+        maxLength={2}
+        selectTextOnFocus
+        accessibilityLabel={rotulo}
+      />
+      <TouchableOpacity style={styles.seta} onPress={onMenos} accessibilityLabel={`Menos ${rotulo}`}>
+        <Feather name="chevron-down" size={22} color={colors.primary} />
+      </TouchableOpacity>
+      <Text style={styles.colunaRotulo}>{rotulo}</Text>
     </View>
   );
 }
@@ -207,4 +252,15 @@ const styles = StyleSheet.create({
   previa: { fontSize: 13, color: colors.textPrimary, fontWeight: "600" },
   erro: { fontSize: 13, color: "#C0392B" },
   nota: { fontSize: 11, lineHeight: 16, color: colors.textSecondary },
+  relogio: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 14, backgroundColor: colors.surface, borderRadius: 18, borderWidth: 1, borderColor: colors.border, paddingVertical: 10 },
+  coluna: { alignItems: "center", minWidth: 96 },
+  seta: { width: 48, height: 36, alignItems: "center", justifyContent: "center" },
+  numeroGrande: { fontSize: 44, fontWeight: "800", color: colors.textPrimary, textAlign: "center", minWidth: 84, paddingVertical: 0 },
+  colunaRotulo: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  doisPontos: { fontSize: 40, fontWeight: "800", color: colors.textSecondary, marginTop: -6 },
+  atalhos: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  atalho: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: "#EAF3E4" },
+  atalhoSel: { backgroundColor: colors.primary },
+  atalhoTxt: { fontSize: 12, fontWeight: "600", color: colors.primary },
+  atalhoTxtSel: { color: "#fff" },
 });
