@@ -13,7 +13,9 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#1F5D3A"
+        "backgroundColor": "#1F5D3A",
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/adaptive-monochrome.png"
       },
       "package": "com.geladeriavirtual.app",
       "permissions": [
@@ -51,6 +53,7 @@
           }
         }
       ]
-    ]
+    ],
+    "icon": "./assets/icon.png"
   }
 }
