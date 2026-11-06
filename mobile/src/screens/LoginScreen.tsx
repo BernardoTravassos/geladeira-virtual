@@ -16,24 +16,43 @@ import { LinearGradient } from "expo-linear-gradient";
 import Logo from "../components/Logo";
 import { login, register, getProfile, descreverFalhaDeRede } from "../services/api";
 import CampoSenha from "../components/CampoSenha";
+import { Feather } from "@expo/vector-icons";
+import { regrasDaSenha, validarEmail, validarSenha } from "../utils/validacao";
+
+function Regra({ ok, texto }: { ok: boolean; texto: string }) {
+  return (
+    <View style={styles.regra}>
+      <Feather name={ok ? "check-circle" : "circle"} size={14} color={ok ? "#1E8E5A" : colors.textSecondary} />
+      <Text style={[styles.regraTxt, ok && { color: "#1E8E5A" }]}>{texto}</Text>
+    </View>
+  );
+}
 
 export default function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [modoCadastro, setModoCadastro] = useState(false);
   const [carregando, setCarregando] = useState(false);
+  const [erroEmail, setErroEmail] = useState<string | null>(null);
+  const [erroSenha, setErroSenha] = useState<string | null>(null);
+  const regras = regrasDaSenha(senha);
 
   async function handleEntrar() {
-    if (!email || !senha) {
-      Alert.alert("Ops", "Preencha e-mail e senha.");
-      return;
-    }
+    // Valida ANTES de chamar o servidor: e-mail no formato padrão e senha com
+    // 8+ caracteres e uma maiúscula. Mostra os dois problemas de uma vez.
+    const eEmail = validarEmail(email);
+    const eSenha = validarSenha(senha);
+    setErroEmail(eEmail);
+    setErroSenha(eSenha);
+    if (eEmail || eSenha) return;
+
+    const emailLimpo = email.trim().toLowerCase();
 
     setCarregando(true);
     try {
       const token = modoCadastro
-        ? await register(email, senha)
-        : await login(email, senha);
+        ? await register(emailLimpo, senha)
+        : await login(emailLimpo, senha);
 
       await AsyncStorage.setItem("@geladeira:token", token);
 
@@ -85,16 +104,27 @@ export default function LoginScreen({ navigation }: any) {
           placeholder="E-mail"
           placeholderTextColor={colors.textSecondary}
           autoCapitalize="none"
+          autoCorrect={false}
           keyboardType="email-address"
+          textContentType="emailAddress"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(t) => { setEmail(t); if (erroEmail) setErroEmail(null); }}
         />
+        {!!erroEmail && <Text style={styles.erro}>{erroEmail}</Text>}
         <CampoSenha
           placeholder="Senha"
           textContentType="password"
           value={senha}
-          onChangeText={setSenha}
+          onChangeText={(t) => { setSenha(t); if (erroSenha) setErroSenha(null); }}
         />
+        {!!erroSenha && <Text style={styles.erro}>{erroSenha}</Text>}
+        {/* Ao criar a conta, a lista mostra ao vivo o que falta na senha. */}
+        {modoCadastro && senha.length > 0 && (
+          <View style={styles.regras}>
+            <Regra ok={regras.tamanho} texto="Pelo menos 8 caracteres" />
+            <Regra ok={regras.maiuscula} texto="Pelo menos uma letra maiúscula" />
+          </View>
+        )}
 
         <TouchableOpacity style={styles.button} onPress={handleEntrar} disabled={carregando}>
           {carregando ? (
@@ -180,6 +210,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 10,
   },
+  erro: { color: "#C0392B", fontSize: 12, lineHeight: 16, marginTop: -6 },
+  regras: { gap: 4, marginTop: -4 },
+  regra: { flexDirection: "row", alignItems: "center", gap: 6 },
+  regraTxt: { fontSize: 12, color: colors.textSecondary },
   separador: {
     height: 1,
     backgroundColor: colors.border,

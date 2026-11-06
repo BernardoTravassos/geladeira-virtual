@@ -18,6 +18,8 @@ public sealed class CadastroRequest
     [Required(ErrorMessage = "Senha é obrigatória")]
     [MinLength(8, ErrorMessage = "A senha precisa de pelo menos 8 caracteres")]
     [MaxLength(72, ErrorMessage = "Senha longa demais")]
+    // O atributo exige que o padrão case com a senha INTEIRA, daí o [\s\S]* nas pontas.
+    [RegularExpression(@"^[\s\S]*[A-ZÀ-ÖØ-Þ][\s\S]*$", ErrorMessage = "A senha precisa ter pelo menos uma letra maiúscula")]
     public string Senha { get; set; } = "";
 }
 
@@ -60,6 +62,8 @@ public sealed class RedefinirSenhaRequest
     [Required]
     [MinLength(8, ErrorMessage = "A senha precisa de pelo menos 8 caracteres")]
     [MaxLength(72, ErrorMessage = "Senha longa demais")]
+    // O atributo exige que o padrão case com a senha INTEIRA, daí o [\s\S]* nas pontas.
+    [RegularExpression(@"^[\s\S]*[A-ZÀ-ÖØ-Þ][\s\S]*$", ErrorMessage = "A senha precisa ter pelo menos uma letra maiúscula")]
     public string NovaSenha { get; set; } = "";
 }
 
@@ -72,5 +76,7 @@ public sealed class AlterarSenhaRequest
     [Required(ErrorMessage = "Informe a nova senha")]
     [MinLength(8, ErrorMessage = "A senha precisa de pelo menos 8 caracteres")]
     [MaxLength(72, ErrorMessage = "Senha longa demais")]
+    // O atributo exige que o padrão case com a senha INTEIRA, daí o [\s\S]* nas pontas.
+    [RegularExpression(@"^[\s\S]*[A-ZÀ-ÖØ-Þ][\s\S]*$", ErrorMessage = "A senha precisa ter pelo menos uma letra maiúscula")]
     public string NovaSenha { get; set; } = "";
 }

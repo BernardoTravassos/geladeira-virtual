@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { SENHA_MINIMA, validarEmail, validarSenha } from "../utils/validacao";
 import { useFeedback } from "../components/Feedback";
 import {
   View,
@@ -19,7 +20,6 @@ import { DEV } from "../config/dev";
 import CampoSenha from "../components/CampoSenha";
 import BarraTeclado, { ID_BARRA_TECLADO } from "../components/BarraTeclado";
 
-const SENHA_MINIMA = 8;
 
 export default function EsqueciSenhaScreen({ navigation }: any) {
   const feedback = useFeedback();
@@ -32,8 +32,9 @@ export default function EsqueciSenhaScreen({ navigation }: any) {
 
   async function enviarCodigo() {
     const limpo = email.trim().toLowerCase();
-    if (!limpo.includes("@")) {
-      Alert.alert("Ops", "Digite um e-mail válido.");
+    const erroEmail = validarEmail(limpo);
+    if (erroEmail) {
+      Alert.alert("Ops", erroEmail);
       return;
     }
 
@@ -58,8 +59,9 @@ export default function EsqueciSenhaScreen({ navigation }: any) {
       Alert.alert("Ops", "O código tem 6 dígitos.");
       return;
     }
-    if (novaSenha.length < SENHA_MINIMA) {
-      Alert.alert("Ops", `A senha precisa de pelo menos ${SENHA_MINIMA} caracteres.`);
+    const erroSenha = validarSenha(novaSenha);
+    if (erroSenha) {
+      Alert.alert("Ops", erroSenha);
       return;
     }
     // Confirmação existe para evitar erro de digitação: a pessoa trocaria a
@@ -174,7 +176,7 @@ export default function EsqueciSenhaScreen({ navigation }: any) {
             />
 
             <CampoSenha
-              placeholder={`Nova senha (mín. ${SENHA_MINIMA} caracteres)`}
+              placeholder={`Nova senha (mín. ${SENHA_MINIMA} caracteres e 1 maiúscula)`}
               textContentType="newPassword"
               value={novaSenha}
               onChangeText={setNovaSenha}
