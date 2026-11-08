@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using GeladeiraVirtual.Api.Dados.Entidades;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +21,8 @@ public partial class GeladeiraContext : DbContext
     public virtual DbSet<Perfil> Perfis { get; set; }
 
     public virtual DbSet<Usuario> Usuarios { get; set; }
+
+    public virtual DbSet<RegistroDia> RegistrosDia { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -181,6 +183,35 @@ public partial class GeladeiraContext : DbContext
                 .HasForeignKey(d => d.UsuarioId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("codigos_recuperacao_usuario_id_fkey");
+        });
+
+        modelBuilder.Entity<RegistroDia>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("registros_dia_pkey");
+
+            entity.ToTable("registros_dia");
+
+            // Um registro por usuário, tipo e dia: gravar de novo substitui.
+            entity.HasIndex(e => new { e.UsuarioId, e.Tipo, e.Data }, "registros_dia_usuario_tipo_data_key").IsUnique();
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.UsuarioId).HasColumnName("usuario_id");
+            entity.Property(e => e.Tipo)
+                .HasMaxLength(20)
+                .HasColumnName("tipo");
+            entity.Property(e => e.Data).HasColumnName("data");
+            entity.Property(e => e.Conteudo).HasColumnName("conteudo");
+            entity.Property(e => e.AtualizadoEm)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("atualizado_em");
+
+            entity.HasOne(d => d.Usuario).WithMany()
+                .HasForeignKey(d => d.UsuarioId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("registros_dia_usuario_id_fkey");
         });
 
         OnModelCreatingPartial(modelBuilder);

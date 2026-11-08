@@ -19,6 +19,7 @@ import Logo from "../components/Logo";
 import { login, register, getProfile, descreverFalhaDeRede } from "../services/api";
 import CampoSenha from "../components/CampoSenha";
 import { prepararDadosLocais } from "../utils/dadosLocais";
+import { sincronizarComLimite } from "../utils/sincronizacao";
 import { Feather } from "@expo/vector-icons";
 import { regrasDaSenha, validarEmail, validarSenha } from "../utils/validacao";
 
@@ -63,6 +64,7 @@ export default function LoginScreen({ navigation }: any) {
 
       await AsyncStorage.setItem("@geladeira:token", token);
       await prepararDadosLocais(emailLimpo, modoCadastro);
+      if (!modoCadastro) await sincronizarComLimite(); // traz do servidor o diário da conta
 
       // Conta nova → perguntas. Conta existente com perfil → tela principal.
       const perfil = modoCadastro ? null : await getProfile();

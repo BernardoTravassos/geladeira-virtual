@@ -21,6 +21,7 @@ import TreinoScreen from "./src/screens/TreinoScreen";
 import ReceitasScreen from "./src/screens/ReceitasScreen";
 import TransicaoLogo, { TransicaoLogoRef } from "./src/components/TransicaoLogo";
 import { FeedbackProvider } from "./src/components/Feedback";
+import { sincronizar } from "./src/utils/sincronizacao";
 
 export type RootStackParamList = {
   Login: undefined;
@@ -64,6 +65,7 @@ function Principal() {
       } else {
         setInitialRoute("Home");
       }
+      if (token) sincronizar(); // segundo plano: reenvia pendências e atualiza o diário
     }
     checkStoredSession();
   }, []);

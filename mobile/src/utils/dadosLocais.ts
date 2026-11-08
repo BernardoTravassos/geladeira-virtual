@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const CHAVE_CONTA = "@geladeira:contaAtual";
 const PREFIXOS = ["@geladeira:refeicoes:", "@geladeira:agua:", "@geladeira:treinos:"];
-const CHAVES_FIXAS = ["@geladeira:perfilDemo"];
+const CHAVES_FIXAS = ["@geladeira:perfilDemo", "@geladeira:pendentes"];
 
 /**
  * Os registros (refeições, água, treinos) ficam no aparelho e NÃO são separados

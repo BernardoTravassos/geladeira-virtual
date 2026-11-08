@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { semente } from "./aleatorio";
 import { DEV } from "../config/dev";
 import { chaveData } from "./dia";
+import { gravarDia } from "./sincronizacao";
 import { lerHealthConnect, nativoDisponivel, pedirPermissaoHealthConnect } from "./healthConnect";
 
 export type OrigemTreino = "manual" | "smartwatch" | "gymrats";
@@ -105,13 +106,13 @@ export async function adicionarTreinoManual(tipo: string, minutos: number, pesoK
     kcal: estimarKcalTreino(tipo, minutos, pesoKg),
     origem: "manual",
   };
-  await AsyncStorage.setItem(chaveTreinos(data), JSON.stringify([...atuais, novo]));
+  await gravarDia(chaveTreinos(data), JSON.stringify([...atuais, novo]));
   return novo;
 }
 
 export async function removerTreinoManual(id: string, data = new Date()) {
   const atuais = lerTreinosSalvos(await AsyncStorage.getItem(chaveTreinos(data)));
-  await AsyncStorage.setItem(chaveTreinos(data), JSON.stringify(atuais.filter((t) => t.id !== id)));
+  await gravarDia(chaveTreinos(data), JSON.stringify(atuais.filter((t) => t.id !== id)));
 }
 
 // ───────────── simulação do smartwatch (só DEV.SIMULAR_SMARTWATCH) ─────────────

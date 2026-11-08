@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { alimentoPorId, nutrientes } from "../data/alimentos";
+import { gravarDia } from "./sincronizacao";
 
 // Um item marcado no prato: o alimento e quantas gramas a pessoa comeu.
 export type ItemPrato = { alimentoId: string; gramas: number };
@@ -23,7 +24,7 @@ export type RegistroRefeicao = {
 
 export type RegistroDoDia = Record<string, RegistroRefeicao>; // chave = "cafe" | "almoco" ...
 
-// TODO: mover para a API (tabela de refeições) — por enquanto fica só neste aparelho.
+// Fica no aparelho e é espelhado no servidor por utils/sincronizacao.ts.
 const chaveDoDia = (d = new Date()) => {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
@@ -43,7 +44,7 @@ export async function salvarRefeicao(chave: string, registro: RegistroRefeicao |
   const dia = await carregarDia();
   if (registro) dia[chave] = registro;
   else delete dia[chave];
-  await AsyncStorage.setItem(chaveDoDia(), JSON.stringify(dia));
+  await gravarDia(chaveDoDia(), JSON.stringify(dia));
 }
 
 export function totais(itens: ItemPrato[]) {

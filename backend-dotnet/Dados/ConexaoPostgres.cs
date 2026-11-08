@@ -37,6 +37,13 @@ public static class ConexaoPostgres
             Password = credenciais.Length > 1 ? Uri.UnescapeDataString(credenciais[1]) : null,
         };
 
+        // Bancos na nuvem (Neon, Supabase) exigem conexão criptografada e avisam
+        // isso na URL (?sslmode=require). Banco local do Docker não usa SSL.
+        if (uri.Query.Contains("sslmode=require", StringComparison.OrdinalIgnoreCase))
+        {
+            construtor.SslMode = SslMode.Require;
+        }
+
         if (string.IsNullOrEmpty(construtor.Database))
         {
             throw new InvalidOperationException(

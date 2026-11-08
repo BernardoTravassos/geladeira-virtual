@@ -216,6 +216,48 @@ namespace GeladeiraVirtual.Api.Dados.Migrations
                     b.ToTable("perfis", (string)null);
                 });
 
+            modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.RegistroDia", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("atualizado_em")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Conteudo")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("conteudo");
+
+                    b.Property<DateOnly>("Data")
+                        .HasColumnType("date")
+                        .HasColumnName("data");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("tipo");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("usuario_id");
+
+                    b.HasKey("Id")
+                        .HasName("registros_dia_pkey");
+
+                    b.HasIndex(new[] { "UsuarioId", "Tipo", "Data" }, "registros_dia_usuario_tipo_data_key")
+                        .IsUnique();
+
+                    b.ToTable("registros_dia", (string)null);
+                });
+
             modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.Usuario", b =>
                 {
                     b.Property<Guid>("Id")
@@ -301,6 +343,18 @@ namespace GeladeiraVirtual.Api.Dados.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("perfis_usuario_id_fkey");
+
+                    b.Navigation("Usuario");
+                });
+
+            modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.RegistroDia", b =>
+                {
+                    b.HasOne("GeladeiraVirtual.Api.Dados.Entidades.Usuario", "Usuario")
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("registros_dia_usuario_id_fkey");
 
                     b.Navigation("Usuario");
                 });

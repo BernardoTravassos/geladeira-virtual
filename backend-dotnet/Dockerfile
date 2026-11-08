@@ -29,5 +29,7 @@ COPY --from=build /app/publish ./
 # O backend em TypeScript roda como root — isto é o item 18 já resolvido.
 USER $APP_UID
 
+# Hospedagens (Render etc.) não passam esta variável como o docker-compose passa.
+ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "GeladeiraVirtual.Api.dll"]

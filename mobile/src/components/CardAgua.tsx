@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState, useMemo } from "react"
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { gravarDia } from "../utils/sincronizacao";
 import { useFocusEffect } from "@react-navigation/native";
 import { sombra } from "../theme/colors";
 import { useChaveDoDia } from "../utils/dia";
@@ -131,7 +132,7 @@ export default function CardAgua({ metaMl }: Props) {
 
   function salvar(lista: number[]) {
     setGoles(lista);
-    AsyncStorage.setItem(chaveDoDia(), JSON.stringify(lista)).catch(() => {});
+    gravarDia(chaveDoDia(), JSON.stringify(lista)).catch(() => {});
   }
   const beber = (ml: number) => salvar([...goles, ml]);
   const desfazer = () => salvar(goles.slice(0, -1));
