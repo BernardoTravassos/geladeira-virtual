@@ -145,28 +145,30 @@ export default function PaywallCard({
   // O Modal do sistema só serve de "janela por cima de tudo": a animação é nossa.
   // Com animationType="slide" o sistema desliza a janela INTEIRA (fundo escuro
   // junto) depois que o card já saiu, e o fundo parecia sumir atrasado.
-  // Aqui o fundo e o card entram e saem juntos, com o mesmo relógio.
   const altura = Dimensions.get("window").height;
-  const progresso = useRef(new Animated.Value(0)).current; // 0 = fechado, 1 = aberto
+  const progresso = useRef(new Animated.Value(0)).current; // card: 0 = fora da tela, 1 = no lugar
   const [montado, setMontado] = useState(visivel);
+
+  // Escuridão do fundo (0 = claro, 1 = escuro). Valor PRÓPRIO, movido à mão pelo
+  // dedo durante o arrasto: não depende da animação nativa do card, então
+  // acompanha o gesto quadro a quadro.
+  const fundo = useRef(new Animated.Value(0)).current;
+  const alturaPainel = useRef(430);
 
   useEffect(() => {
     if (visivel) {
       deslocamento.setValue(0); // reabre sempre na posição certa
       setMontado(true);
       Animated.timing(progresso, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+      Animated.timing(fundo, { toValue: 1, duration: 260, useNativeDriver: false }).start();
     } else {
+      Animated.timing(fundo, { toValue: 0, duration: 200, useNativeDriver: false }).start();
       Animated.timing(progresso, { toValue: 0, duration: 200, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(
         ({ finished }) => finished && setMontado(false),
       );
     }
-  }, [visivel, deslocamento, progresso]);
+  }, [visivel, deslocamento, progresso, fundo]);
 
-  // Escuridão do fundo: acompanha a abertura e também o arrasto do card.
-  const opacidadeFundo = Animated.multiply(
-    progresso,
-    deslocamento.interpolate({ inputRange: [0, altura * 0.6], outputRange: [1, 0], extrapolate: "clamp" }),
-  );
   const posicaoPainel = Animated.add(
     deslocamento,
     progresso.interpolate({ inputRange: [0, 1], outputRange: [altura, 0] }),
@@ -178,22 +180,31 @@ export default function PaywallCard({
         // Só assume o toque quando o movimento é claramente vertical para baixo;
         // assim os botões continuam recebendo toques normais.
         onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
-        onPanResponderMove: (_, g) => deslocamento.setValue(Math.max(g.dy, 0)),
+        onPanResponderMove: (_, g) => {
+          const dy = Math.max(g.dy, 0);
+          deslocamento.setValue(dy);
+          // Fundo clareia na proporção do que o card já desceu do PRÓPRIO tamanho dele.
+          fundo.setValue(1 - Math.min(dy / alturaPainel.current, 1));
+        },
         onPanResponderRelease: (_, g) => {
           if (g.dy > 120 || g.vy > 0.8) {
+            Animated.timing(fundo, { toValue: 0, duration: 180, useNativeDriver: false }).start();
             Animated.timing(deslocamento, {
               toValue: altura,
               duration: 180,
               useNativeDriver: true,
             }).start(() => onFecharRef.current());
           } else {
+            Animated.timing(fundo, { toValue: 1, duration: 180, useNativeDriver: false }).start();
             Animated.spring(deslocamento, { toValue: 0, useNativeDriver: true, bounciness: 6 }).start();
           }
         },
-        onPanResponderTerminate: () =>
-          Animated.spring(deslocamento, { toValue: 0, useNativeDriver: true }).start(),
+        onPanResponderTerminate: () => {
+          Animated.timing(fundo, { toValue: 1, duration: 180, useNativeDriver: false }).start();
+          Animated.spring(deslocamento, { toValue: 0, useNativeDriver: true }).start();
+        },
       }),
-    [deslocamento],
+    [deslocamento, fundo, altura],
   );
 
   const plural = consultasPorDia === 1 ? "é 1 consulta" : `são ${consultasPorDia} consultas`;
@@ -224,10 +235,14 @@ export default function PaywallCard({
     >
       {/* Toque fora fecha — gesto que todo mundo já espera de um painel. */}
       <View style={styles.fundo}>
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.escuro, { opacity: opacidadeFundo }]} />
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.escuro, { opacity: fundo }]} />
         <Pressable style={StyleSheet.absoluteFill} onPress={onFechar} />
         {/* Toque dentro NÃO fecha: o Pressable interno absorve o evento. */}
-        <Animated.View style={[styles.painel, { paddingBottom: 28 + insets.bottom, transform: [{ translateY: posicaoPainel }] }]} {...gesto.panHandlers}>
+        <Animated.View
+          onLayout={(e) => { alturaPainel.current = e.nativeEvent.layout.height; }}
+          style={[styles.painel, { paddingBottom: 28 + insets.bottom, transform: [{ translateY: posicaoPainel }] }]}
+          {...gesto.panHandlers}
+        >
           <Pressable style={styles.conteudo} onPress={() => {}}>
           <View style={styles.puxador} />
 
