@@ -1,8 +1,8 @@
 import { useCores } from "../theme/tema";
 import type { Cores } from "../theme/colors";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Animated, Dimensions, Modal, PanResponder, View, Text, TouchableOpacity, StyleSheet, Pressable } from "react-native";
+import { Animated, Dimensions, Easing, Modal, PanResponder, View, Text, TouchableOpacity, StyleSheet, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
 
@@ -142,9 +142,35 @@ export default function PaywallCard({
   const onFecharRef = useRef(onFechar);
   onFecharRef.current = onFechar;
 
+  // O Modal do sistema só serve de "janela por cima de tudo": a animação é nossa.
+  // Com animationType="slide" o sistema desliza a janela INTEIRA (fundo escuro
+  // junto) depois que o card já saiu, e o fundo parecia sumir atrasado.
+  // Aqui o fundo e o card entram e saem juntos, com o mesmo relógio.
+  const altura = Dimensions.get("window").height;
+  const progresso = useRef(new Animated.Value(0)).current; // 0 = fechado, 1 = aberto
+  const [montado, setMontado] = useState(visivel);
+
   useEffect(() => {
-    if (visivel) deslocamento.setValue(0); // reabre sempre na posição certa
-  }, [visivel, deslocamento]);
+    if (visivel) {
+      deslocamento.setValue(0); // reabre sempre na posição certa
+      setMontado(true);
+      Animated.timing(progresso, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    } else {
+      Animated.timing(progresso, { toValue: 0, duration: 200, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(
+        ({ finished }) => finished && setMontado(false),
+      );
+    }
+  }, [visivel, deslocamento, progresso]);
+
+  // Escuridão do fundo: acompanha a abertura e também o arrasto do card.
+  const opacidadeFundo = Animated.multiply(
+    progresso,
+    deslocamento.interpolate({ inputRange: [0, altura * 0.6], outputRange: [1, 0], extrapolate: "clamp" }),
+  );
+  const posicaoPainel = Animated.add(
+    deslocamento,
+    progresso.interpolate({ inputRange: [0, 1], outputRange: [altura, 0] }),
+  );
 
   const gesto = useMemo(
     () =>
@@ -156,7 +182,7 @@ export default function PaywallCard({
         onPanResponderRelease: (_, g) => {
           if (g.dy > 120 || g.vy > 0.8) {
             Animated.timing(deslocamento, {
-              toValue: Dimensions.get("window").height,
+              toValue: altura,
               duration: 180,
               useNativeDriver: true,
             }).start(() => onFecharRef.current());
@@ -190,16 +216,18 @@ export default function PaywallCard({
 
   return (
     <Modal
-      visible={visivel}
+      visible={montado}
       transparent
-      animationType="slide"
+      animationType="none"
       onRequestClose={onFechar}
       statusBarTranslucent
     >
       {/* Toque fora fecha — gesto que todo mundo já espera de um painel. */}
-      <Pressable style={styles.fundo} onPress={onFechar}>
+      <View style={styles.fundo}>
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.escuro, { opacity: opacidadeFundo }]} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onFechar} />
         {/* Toque dentro NÃO fecha: o Pressable interno absorve o evento. */}
-        <Animated.View style={[styles.painel, { paddingBottom: 28 + insets.bottom, transform: [{ translateY: deslocamento }] }]} {...gesto.panHandlers}>
+        <Animated.View style={[styles.painel, { paddingBottom: 28 + insets.bottom, transform: [{ translateY: posicaoPainel }] }]} {...gesto.panHandlers}>
           <Pressable style={styles.conteudo} onPress={() => {}}>
           <View style={styles.puxador} />
 
@@ -246,7 +274,7 @@ export default function PaywallCard({
           </TouchableOpacity>
           </Pressable>
         </Animated.View>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
@@ -254,9 +282,9 @@ export default function PaywallCard({
 const criarStyles = (colors: Cores) => StyleSheet.create({
   fundo: {
     flex: 1,
-    backgroundColor: "rgba(27, 27, 27, 0.55)",
     justifyContent: "flex-end",
   },
+  escuro: { backgroundColor: "rgba(27, 27, 27, 0.55)" },
   painel: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: 28,
