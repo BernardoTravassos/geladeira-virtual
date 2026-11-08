@@ -1,7 +1,9 @@
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
 import React, { useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, Animated, Easing } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { colors } from "../theme/colors";
+
 import { grafico } from "../theme/graficos";
 
 export type Serie = { nome: string; cor: string; valores: number[] };
@@ -39,6 +41,8 @@ const ATRASO_ENTRE_COLUNAS = 45;
  * só valeria com transform, que complicaria ancorar o crescimento na base.
  */
 export default function GraficoColunas({ rotulos, series, unidade = "", referencia, larguraBarra, rotuloACada = 1 }: Props) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   // Um valor animado por coluna. Recalcula quando o NÚMERO de colunas muda: antes
   // ele era criado uma vez só, e se os dados chegassem depois com mais colunas
   // (7 dias → 30 dias), progresso[i] ficava indefinido e o app quebrava.
@@ -132,7 +136,7 @@ export default function GraficoColunas({ rotulos, series, unidade = "", referenc
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   legenda: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 14 },
   legendaItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendaMarca: { width: 9, height: 9, borderRadius: 2 },
@@ -145,10 +149,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     height: ALTURA + 34,
     borderBottomWidth: 1,
-    borderBottomColor: grafico.eixo,
+    borderBottomColor: colors.eixo,
   },
   referencia: { position: "absolute", left: 0, right: 0, flexDirection: "row", alignItems: "center", gap: 6 },
-  referenciaLinha: { flex: 1, height: 1, backgroundColor: grafico.eixo },
+  referenciaLinha: { flex: 1, height: 1, backgroundColor: colors.eixo },
   referenciaTexto: { fontSize: 9, color: colors.textSecondary },
 
   grupo: { flex: 1, alignItems: "center", justifyContent: "flex-end" },

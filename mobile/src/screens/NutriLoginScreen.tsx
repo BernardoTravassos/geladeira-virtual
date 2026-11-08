@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useState, useMemo } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { colors } from "../theme/colors";
+
 import CampoSenha from "../components/CampoSenha";
 
 /**
@@ -15,6 +17,8 @@ import CampoSenha from "../components/CampoSenha";
  * pessoa física, e o tipo da conta vem no token.
  */
 export default function NutriLoginScreen({ navigation }: any) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [carregando, setCarregando] = useState(false);
@@ -41,7 +45,7 @@ export default function NutriLoginScreen({ navigation }: any) {
           onPress={() => navigation.replace("Login")}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Feather name="arrow-left" size={20} color={colors.background} />
+          <Feather name="arrow-left" size={20} color={colors.textoSobreMarca} />
         </TouchableOpacity>
 
         <View style={styles.selo}>
@@ -75,7 +79,7 @@ export default function NutriLoginScreen({ navigation }: any) {
 
         <TouchableOpacity style={styles.botao} onPress={entrar} disabled={carregando}>
           {carregando ? (
-            <ActivityIndicator color={colors.surface} />
+            <ActivityIndicator color={colors.textoSobreMarca} />
           ) : (
             <Text style={styles.botaoTexto}>Entrar</Text>
           )}
@@ -89,15 +93,15 @@ export default function NutriLoginScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  hero: { flex: 0.52, backgroundColor: colors.primary, justifyContent: "space-between", padding: 24, paddingTop: 56 },
+  hero: { flex: 0.52, backgroundColor: colors.botao, justifyContent: "space-between", padding: 24, paddingTop: 56 },
   selo: {
     flexDirection: "row", alignItems: "center", gap: 7, alignSelf: "flex-start",
     backgroundColor: colors.background, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999,
   },
   seloTexto: { fontSize: 11, fontWeight: "700", color: colors.primary },
-  titulo: { fontSize: 26, fontWeight: "700", color: colors.background, marginTop: 14 },
+  titulo: { fontSize: 26, fontWeight: "700", color: colors.textoSobreMarca, marginTop: 14 },
   subtitulo: { fontSize: 13, color: "#D9EDE0", marginTop: 6 },
   card: {
     flex: 1, backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
@@ -108,9 +112,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, fontSize: 15, color: colors.textPrimary, backgroundColor: colors.surface,
   },
   botao: {
-    height: 48, backgroundColor: colors.primary, borderRadius: 12,
+    height: 48, backgroundColor: colors.botao, borderRadius: 12,
     justifyContent: "center", alignItems: "center", marginTop: 4,
   },
-  botaoTexto: { color: colors.surface, fontWeight: "600", fontSize: 15 },
+  botaoTexto: { color: colors.textoSobreMarca, fontWeight: "600", fontSize: 15 },
   rodape: { fontSize: 12, color: colors.textSecondary, textAlign: "center", marginTop: 6, lineHeight: 17 },
 });

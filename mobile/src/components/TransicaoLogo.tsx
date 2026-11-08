@@ -1,6 +1,8 @@
-import React, { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { forwardRef, useImperativeHandle, useRef, useState, useMemo } from "react";
 import { Animated, Easing, StyleSheet } from "react-native";
-import { colors } from "../theme/colors";
+
 import Logo from "./Logo";
 
 export type TransicaoLogoRef = { tocar: () => void };
@@ -21,6 +23,8 @@ const SAIR = 280; // revela a tela nova
  * que o JS esteja ocupado montando a próxima tela.
  */
 const TransicaoLogo = forwardRef<TransicaoLogoRef>(function TransicaoLogo(_, ref) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const [ativa, setAtiva] = useState(false);
   const fundo = useRef(new Animated.Value(0)).current;
   const corpo = useRef(new Animated.Value(0)).current;
@@ -70,7 +74,7 @@ const TransicaoLogo = forwardRef<TransicaoLogoRef>(function TransicaoLogo(_, ref
           opacity: corpo.interpolate({ inputRange: [0, 0.4], outputRange: [0, 1], extrapolate: "clamp" }),
         }}
       >
-        <Logo tamanho={TAMANHO} parte="corpo" corDetalhe={colors.primary} />
+        <Logo tamanho={TAMANHO} parte="corpo" />
         {/* A folha nasce na ponta de cima da geladeira e balança até assentar. */}
         <Animated.View
           style={[
@@ -94,10 +98,10 @@ const TransicaoLogo = forwardRef<TransicaoLogoRef>(function TransicaoLogo(_, ref
 
 export default TransicaoLogo;
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   cortina: {
     ...StyleSheet.absoluteFill as object,
-    backgroundColor: colors.primary,
+    backgroundColor: "#1F5D3A", // verde da marca, igual nos dois modos
     alignItems: "center",
     justifyContent: "center",
     zIndex: 999,

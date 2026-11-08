@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { semente } from "./aleatorio";
 import { DEV } from "../config/dev";
 import { alimentoPorId } from "../data/alimentos";
 import { lerSaudeDeDatas, Treino } from "./saude";
@@ -144,13 +145,6 @@ export async function carregarHistorico(periodo: PeriodoHistorico, metaKcal: num
 
 // Gerador pseudoaleatório determinístico: o mesmo dia sempre gera o mesmo exemplo,
 // senão os gráficos mudariam a cada abertura.
-function semente(n: number) {
-  let s = n >>> 0;
-  return () => {
-    s = (s * 1664525 + 1013904223) >>> 0;
-    return s / 4294967296;
-  };
-}
 
 const REFEICOES_EXEMPLO: { chave: string; fracao: number; chance: number; pratos: string[][] }[] = [
   { chave: "cafe", fracao: 0.25, chance: 0.92, pratos: [["Pão francês", "Ovo cozido", "Café com açúcar"], ["Tapioca", "Queijo", "Mamão"], ["Aveia", "Banana", "Leite"]] },

@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-import { colors, sombra } from "../theme/colors";
+import { sombra } from "../theme/colors";
 import { useChaveDoDia } from "../utils/dia";
 
 const AGUA = "#35A7E8";
@@ -41,6 +43,8 @@ function mensagem(fracao: number, faltaMl: number) {
  * que permite desfazer o último toque sem zerar tudo).
  */
 export default function CardAgua({ metaMl }: Props) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const meta = metaMl;
   const chaveDia = useChaveDoDia(); // vira à meia-noite e zera o copo
   const [goles, setGoles] = useState<number[]>([]);
@@ -206,15 +210,15 @@ export default function CardAgua({ metaMl }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 14, ...sombra },
   linha: { flexDirection: "row", alignItems: "center", gap: 18 },
   copo: {
     width: LARGURA,
     height: ALTURA,
     borderWidth: 3,
-    borderColor: "#BFE2F6",
-    backgroundColor: "#F2F9FD",
+    borderColor: colors.aguaBorda,
+    backgroundColor: colors.aguaFundo,
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
     borderBottomLeftRadius: 30,
@@ -236,11 +240,11 @@ const styles = StyleSheet.create({
   valorUn: { fontSize: 16, fontWeight: "700", color: colors.textSecondary },
   sub: { fontSize: 12, color: colors.textSecondary },
   msg: { fontSize: 13, color: colors.textPrimary, marginTop: 8, lineHeight: 18 },
-  msgBatida: { color: "#1E5E34", fontWeight: "700" },
+  msgBatida: { color: colors.sucessoTexto, fontWeight: "700" },
   botoes: { flexDirection: "row", alignItems: "center", gap: 8 },
   principal: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 44, borderRadius: 12, backgroundColor: AGUA_ESCURA },
   principalTxt: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  chip: { minWidth: 44, height: 44, paddingHorizontal: 10, borderRadius: 12, backgroundColor: "#EAF5FC", alignItems: "center", justifyContent: "center" },
+  chip: { minWidth: 44, height: 44, paddingHorizontal: 10, borderRadius: 12, backgroundColor: colors.aguaChip, alignItems: "center", justifyContent: "center" },
   chipTxt: { color: AGUA_ESCURA, fontWeight: "700", fontSize: 13 },
   nota: { fontSize: 11, color: colors.textSecondary, marginTop: -4 },
 });

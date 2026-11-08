@@ -1,4 +1,6 @@
-import React from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useMemo } from "react";
 import {
   InputAccessoryView,
   Keyboard,
@@ -8,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { colors } from "../theme/colors";
+
 
 /**
  * O teclado numérico do iPhone NÃO tem tecla de "OK" nem de "Enter". Sem uma
@@ -22,6 +24,8 @@ import { colors } from "../theme/colors";
 export const ID_BARRA_TECLADO = "barra-teclado-numerico";
 
 export default function BarraTeclado() {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   if (Platform.OS !== "ios") return null;
 
   return (
@@ -40,11 +44,11 @@ export default function BarraTeclado() {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   barra: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    backgroundColor: "#F2F2F2",
+    backgroundColor: colors.barraTeclado,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingHorizontal: 18,

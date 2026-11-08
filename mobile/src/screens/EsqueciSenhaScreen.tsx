@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useState, useMemo } from "react";
 import { SENHA_MINIMA, validarEmail, validarSenha } from "../utils/validacao";
 import { useFeedback } from "../components/Feedback";
 import {
@@ -14,7 +16,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { colors } from "../theme/colors";
+
 import { solicitarCodigoSenha, redefinirSenha } from "../services/api";
 import { DEV } from "../config/dev";
 import CampoSenha from "../components/CampoSenha";
@@ -22,6 +24,8 @@ import BarraTeclado, { ID_BARRA_TECLADO } from "../components/BarraTeclado";
 
 
 export default function EsqueciSenhaScreen({ navigation }: any) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const feedback = useFeedback();
   const [etapa, setEtapa] = useState<"email" | "codigo">("email");
   const [email, setEmail] = useState("");
@@ -145,7 +149,7 @@ export default function EsqueciSenhaScreen({ navigation }: any) {
 
             <TouchableOpacity style={styles.botao} onPress={enviarCodigo} disabled={carregando}>
               {carregando ? (
-                <ActivityIndicator color={colors.surface} />
+                <ActivityIndicator color={colors.textoSobreMarca} />
               ) : (
                 <Text style={styles.botaoTexto}>Enviar código</Text>
               )}
@@ -195,7 +199,7 @@ export default function EsqueciSenhaScreen({ navigation }: any) {
               disabled={carregando}
             >
               {carregando ? (
-                <ActivityIndicator color={colors.surface} />
+                <ActivityIndicator color={colors.textoSobreMarca} />
               ) : (
                 <Text style={styles.botaoTexto}>Redefinir senha</Text>
               )}
@@ -216,7 +220,7 @@ export default function EsqueciSenhaScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   conteudo: { padding: 24, paddingTop: 56, gap: 12 },
   voltar: { alignSelf: "flex-start", marginBottom: 12 },
@@ -246,13 +250,13 @@ const styles = StyleSheet.create({
   },
   botao: {
     height: 48,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.botao,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 4,
   },
-  botaoTexto: { color: colors.surface, fontWeight: "600", fontSize: 15 },
+  botaoTexto: { color: colors.textoSobreMarca, fontWeight: "600", fontSize: 15 },
   link: {
     textAlign: "center",
     color: colors.primary,

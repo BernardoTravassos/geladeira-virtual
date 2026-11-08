@@ -58,7 +58,7 @@ export const DEV = {
    *
    * ⚠️ Desligue antes de publicar.
    */
-  HISTORICO_DE_EXEMPLO: true,
+  HISTORICO_DE_EXEMPLO: false,
 
   /**
    * Finge a leitura do smartwatch / Apple Health / Health Connect (passos,

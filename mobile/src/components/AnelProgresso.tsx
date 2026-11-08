@@ -1,4 +1,6 @@
-import React, { useCallback, useEffect, useRef } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useCallback, useEffect, useRef, useMemo } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { View, Animated, Easing, StyleSheet } from "react-native";
 import Svg, { Circle } from "react-native-svg";
@@ -19,6 +21,8 @@ type Props = {
 
 /** Anel de progresso que se desenha sozinho, no sentido horário a partir do topo. */
 export default function AnelProgresso({ tamanho, espessura = 12, progresso, cor, trilha = "rgba(255,255,255,0.18)", atraso = 0, children }: Props) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const raio = (tamanho - espessura) / 2;
   const circunferencia = 2 * Math.PI * raio;
   const valor = useRef(new Animated.Value(0)).current;
@@ -69,4 +73,4 @@ export default function AnelProgresso({ tamanho, espessura = 12, progresso, cor,
   );
 }
 
-const styles = StyleSheet.create({ centro: { alignItems: "center", justifyContent: "center" } });
+const criarStyles = (colors: Cores) => StyleSheet.create({ centro: { alignItems: "center", justifyContent: "center" } });

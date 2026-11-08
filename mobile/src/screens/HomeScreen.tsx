@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCores, useTema } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { colors, sombra, degrade } from "../theme/colors";
+import { sombra, degrade } from "../theme/colors";
 import { LinearGradient } from "expo-linear-gradient";
 import Logo from "../components/Logo";
 import BarraInferior from "../components/BarraInferior";
@@ -25,12 +27,14 @@ import { RECEITAS } from "../mocks/receitas";
 import { carregarDia, totaisDoRegistro, RegistroDoDia } from "../utils/refeicoes";
 
 // Cada refeição tem a sua cor, para a lista deixar de ser uma fila de bolinhas iguais.
-const TOM_REFEICAO: Record<string, { fundo: string; icone: string }> = {
-  cafe: { fundo: "#FFF0D9", icone: "#D98324" },
-  almoco: { fundo: "#E3F4E8", icone: "#2E8B57" },
-  lanche: { fundo: "#FDE7EB", icone: "#D6455D" },
-  jantar: { fundo: "#E4ECFB", icone: "#3F63B8" },
-  ceia: { fundo: "#EDE6FA", icone: "#7650C2" },
+// No modo escuro o fundo é a própria cor do ícone, bem transparente (os pastéis
+// claros brilhariam demais sobre o fundo escuro).
+const TOM_REFEICAO: Record<string, { claro: string; icone: string }> = {
+  cafe: { claro: "#FFF0D9", icone: "#D98324" },
+  almoco: { claro: "#E3F4E8", icone: "#2E8B57" },
+  lanche: { claro: "#FDE7EB", icone: "#D6455D" },
+  jantar: { claro: "#E4ECFB", icone: "#3F63B8" },
+  ceia: { claro: "#EDE6FA", icone: "#7650C2" },
 };
 
 type Refeicao = {
@@ -59,6 +63,9 @@ const consultasRecentes = RECEITAS.slice(0, 2);
 const cardapioGeradoHoje = false; // vira true quando existir uma consulta de hoje
 
 export default function HomeScreen({ navigation, route }: any) {
+  const colors = useCores();
+  const { escuro } = useTema();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const [perfil, setPerfil] = useState<PerfilApi | null>(null);
   const [paywallVisivel, setPaywallVisivel] = useState(false);
@@ -235,7 +242,7 @@ export default function HomeScreen({ navigation, route }: any) {
               onPress={() => navigation.navigate("Refeicao", { chave: r.chave, nome: r.nome, icone: r.icone, fracaoDaMeta: r.fracaoDaMeta })}
               style={[styles.mealRow, i < refeicoesDoDia.length - 1 && styles.mealRowDivider]}
             >
-              <View style={[styles.mealIcon, styles.mealIconGrande, { backgroundColor: TOM_REFEICAO[r.chave]?.fundo }]}>
+              <View style={[styles.mealIcon, styles.mealIconGrande, { backgroundColor: escuro ? `${TOM_REFEICAO[r.chave]?.icone}33` : TOM_REFEICAO[r.chave]?.claro }]}>
                 <Feather name={r.icone} size={18} color={TOM_REFEICAO[r.chave]?.icone ?? colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
@@ -331,7 +338,7 @@ export default function HomeScreen({ navigation, route }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   scrollContent: { padding: 20, paddingTop: 0, paddingBottom: 100, gap: 16 },
   hero: {
@@ -367,7 +374,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#EAF3E4",
+    backgroundColor: colors.verdeSuave,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -409,7 +416,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginTop: 10,
   },
-  progressFill: { height: "100%", backgroundColor: colors.primary, borderRadius: 4 },
+  progressFill: { height: "100%", backgroundColor: colors.botao, borderRadius: 4 },
   calorieRemaining: { fontSize: 11, color: colors.textSecondary, marginTop: 6 },
   macroRow: { flexDirection: "row", gap: 12, marginTop: 16 },
   macroItem: { flex: 1 },
@@ -426,7 +433,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderStyle: "dashed",
     borderColor: colors.primaryLight,
-    backgroundColor: "#F3F8EE",
+    backgroundColor: colors.verdeSuave,
     borderRadius: 16,
     padding: 16,
     alignItems: "center",
@@ -451,7 +458,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "#EAF3E4",
+    backgroundColor: colors.verdeSuave,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -459,8 +466,8 @@ const styles = StyleSheet.create({
   mealRowName: { fontSize: 14, fontWeight: "600", color: colors.textPrimary },
   mealRowInfo: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   chip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  chipDone: { backgroundColor: "#EAF3E4" },
-  chipPending: { backgroundColor: "#F1EFE6" },
+  chipDone: { backgroundColor: colors.verdeSuave },
+  chipPending: { backgroundColor: colors.fundoSuave },
   chipText: { fontSize: 10, fontWeight: "600" },
   chipTextDone: { color: colors.primary },
   chipTextPending: { color: colors.textSecondary },
@@ -474,5 +481,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  waterButtonAdd: { backgroundColor: colors.primary, borderColor: colors.primary },
+  waterButtonAdd: { backgroundColor: colors.botao, borderColor: colors.primary },
 });

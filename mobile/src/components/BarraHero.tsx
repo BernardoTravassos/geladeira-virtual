@@ -1,4 +1,6 @@
-import React, { useCallback, useEffect, useRef } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useCallback, useEffect, useRef, useMemo } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -14,6 +16,8 @@ type Props = {
  * vermelho claro.
  */
 export default function BarraHero({ atual, meta, atraso = 0 }: Props) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const progresso = useRef(new Animated.Value(0)).current;
   const passou = meta > 0 && atual > meta;
   const fracaoNormal = meta > 0 ? (passou ? meta / atual : Math.min(atual / meta, 1)) : 0;
@@ -49,7 +53,7 @@ export default function BarraHero({ atual, meta, atraso = 0 }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   trilha: { height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.18)", overflow: "hidden", flexDirection: "row" },
   menta: { height: "100%", borderRadius: 3, backgroundColor: "#7EE0B5" },
   semBorda: { borderTopRightRadius: 0, borderBottomRightRadius: 0 },

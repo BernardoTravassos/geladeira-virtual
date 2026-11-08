@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useState, useMemo } from "react";
 import { useFeedback } from "../components/Feedback";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -17,7 +19,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { colors } from "../theme/colors";
+
 import { saveProfile } from "../services/api";
 import BarraTeclado, { ID_BARRA_TECLADO } from "../components/BarraTeclado";
 import { interpretarNumero, type RegraNumero } from "../utils/numeros";
@@ -93,6 +95,8 @@ const perguntas: Pergunta[] = [
 ];
 
 export default function WizardScreen({ navigation }: any) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const feedback = useFeedback();
   const insets = useSafeAreaInsets();
   const [indice, setIndice] = useState(0);
@@ -326,7 +330,7 @@ export default function WizardScreen({ navigation }: any) {
             disabled={!podeContinuar || enviando}
           >
             {enviando ? (
-              <ActivityIndicator color={colors.background} />
+              <ActivityIndicator color={colors.textoSobreMarca} />
             ) : (
               <Text style={styles.buttonText}>
                 {indice === perguntas.length - 1 ? "Concluir" : "Continuar"}
@@ -340,7 +344,7 @@ export default function WizardScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   raiz: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1, backgroundColor: colors.background, padding: 24 },
   topBar: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 },
@@ -351,7 +355,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     overflow: "hidden",
   },
-  progressFill: { height: "100%", backgroundColor: colors.primary, borderRadius: 3 },
+  progressFill: { height: "100%", backgroundColor: colors.botao, borderRadius: 3 },
   stepLabel: { fontSize: 11, color: colors.textSecondary, fontWeight: "600", marginBottom: 6 },
   title: { fontSize: 20, fontWeight: "700", color: colors.textPrimary, marginBottom: 20 },
   content: { flex: 1, gap: 10 },
@@ -374,12 +378,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  opcaoSelecionada: { borderColor: colors.primary, backgroundColor: "#EAF3E4" },
+  opcaoSelecionada: { borderColor: colors.primary, backgroundColor: colors.verdeSuave },
   opcaoTexto: { fontSize: 14, color: colors.textPrimary },
   opcaoTextoSelecionado: { color: colors.primary, fontWeight: "600" },
   button: {
     height: 48,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.botao,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
@@ -398,9 +402,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  chipMarcado: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipMarcado: { backgroundColor: colors.botao, borderColor: colors.primary },
   chipTexto: { fontSize: 14, color: colors.textPrimary },
   chipTextoMarcado: { color: "#fff", fontWeight: "600" },
   buttonDisabled: { opacity: 0.4 },
-  buttonText: { color: colors.background, fontWeight: "600", fontSize: 15 },
+  buttonText: { color: colors.textoSobreMarca, fontWeight: "600", fontSize: 15 },
 });

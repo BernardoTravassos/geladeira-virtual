@@ -1,12 +1,15 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
-  View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, Alert,
+  View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, Alert, Animated,
   KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, sombra } from "../theme/colors";
+import { sombra } from "../theme/colors";
 import BarraTeclado, { ID_BARRA_TECLADO } from "./BarraTeclado";
 import { useFeedback } from "./Feedback";
 import { useChaveDoDia } from "../utils/dia";
@@ -21,9 +24,11 @@ type Props = {
 };
 
 const ROTULO_ORIGEM = { manual: "Manual", smartwatch: "Smartwatch", gymrats: "GymRats" } as const;
-const VERDE = "#1E5E34";
 
 export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Props) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
+  const VERDE = colors.sucessoTexto;
   const insets = useSafeAreaInsets();
   const feedback = useFeedback();
   const chaveDia = useChaveDoDia(); // vira à meia-noite e zera o dia
@@ -76,7 +81,7 @@ export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Pr
   return (
     <View style={styles.card}>
       <View style={styles.topo}>
-        <View style={[styles.icone, treinou && { backgroundColor: "#E3F6EE" }]}>
+        <View style={[styles.icone, treinou && { backgroundColor: colors.sucessoFundo }]}>
           <Feather name="activity" size={18} color={treinou ? VERDE : colors.primary} />
         </View>
         <View style={{ flex: 1 }}>
@@ -149,20 +154,20 @@ export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Pr
 
                   <Text style={styles.rotulo}>Quanto tempo durou?</Text>
                   <View style={styles.relogio}>
-                    <Coluna
+                    {/* Faixa que marca o valor escolhido, atrás das duas rodas */}
+                    <View pointerEvents="none" style={styles.faixa} />
+                    <Roda
                       rotulo="horas"
-                      valor={horas}
-                      onChange={(t) => { setHoras(String(Math.min(parseInt(somenteDigitos(t) || "0", 10), 10))); setErro(""); }}
-                      onMais={() => definirTotal(totalMin + 60)}
-                      onMenos={() => definirTotal(totalMin - 60)}
+                      max={10}
+                      valor={parseInt(horas, 10) || 0}
+                      onChange={(n) => { setHoras(String(n)); setErro(""); }}
                     />
                     <Text style={styles.doisPontos}>:</Text>
-                    <Coluna
-                      rotulo="minutos"
-                      valor={mins}
-                      onChange={(t) => { setMins(String(Math.min(parseInt(somenteDigitos(t) || "0", 10), 59))); setErro(""); }}
-                      onMais={() => definirTotal(totalMin + 1)}
-                      onMenos={() => definirTotal(totalMin - 1)}
+                    <Roda
+                      rotulo="min"
+                      max={59}
+                      valor={parseInt(mins, 10) || 0}
+                      onChange={(n) => { setMins(String(n)); setErro(""); }}
                     />
                   </View>
                   <View style={styles.atalhos}>
@@ -195,48 +200,114 @@ export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Pr
   );
 }
 
-function Coluna({ rotulo, valor, onChange, onMais, onMenos }: { rotulo: string; valor: string; onChange: (t: string) => void; onMais: () => void; onMenos: () => void }) {
+const ALTURA_ITEM = 46;
+const ITENS_VISIVEIS = 3;
+
+type RodaProps = { rotulo: string; max: number; valor: number; onChange: (n: number) => void };
+
+/**
+ * Roda de números, como a de um despertador: gira com o dedo, desacelera e
+ * "encaixa" no número do meio. Os vizinhos ficam menores e mais claros, e tocar
+ * num deles leva até ele. Usa só ScrollView (sem biblioteca nativa).
+ */
+function Roda({ rotulo, max, valor, onChange }: RodaProps) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
+  const itens = Array.from({ length: max + 1 }, (_, i) => i);
+  const rolagem = useRef<any>(null);
+  const y = useRef(new Animated.Value(valor * ALTURA_ITEM)).current;
+  const atual = useRef(valor);
+
+  // Mudou de fora (atalho "1 h 30", por exemplo): gira a roda até o novo valor.
+  useEffect(() => {
+    if (valor !== atual.current) {
+      atual.current = valor;
+      rolagem.current?.scrollTo({ y: valor * ALTURA_ITEM, animated: true });
+    }
+  }, [valor]);
+
+  // Posiciona na abertura, sem animação.
+  useEffect(() => {
+    const t = setTimeout(() => rolagem.current?.scrollTo({ y: valor * ALTURA_ITEM, animated: false }), 0);
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function terminou(offsetY: number) {
+    const indice = Math.min(Math.max(Math.round(offsetY / ALTURA_ITEM), 0), max);
+    if (indice !== atual.current) {
+      atual.current = indice;
+      onChange(indice);
+    }
+  }
+
   return (
-    <View style={styles.coluna}>
-      <TouchableOpacity style={styles.seta} onPress={onMais} accessibilityLabel={`Mais ${rotulo}`}>
-        <Feather name="chevron-up" size={22} color={colors.primary} />
-      </TouchableOpacity>
-      <TextInput
-        style={styles.numeroGrande}
-        value={valor.padStart(2, "0")}
-        onChangeText={onChange}
-        keyboardType="number-pad"
-        inputAccessoryViewID={ID_BARRA_TECLADO}
-        maxLength={2}
-        selectTextOnFocus
-        accessibilityLabel={rotulo}
-      />
-      <TouchableOpacity style={styles.seta} onPress={onMenos} accessibilityLabel={`Menos ${rotulo}`}>
-        <Feather name="chevron-down" size={22} color={colors.primary} />
-      </TouchableOpacity>
+    <View style={styles.rodaCaixa}>
+      <View style={styles.rodaJanela}>
+        <Animated.ScrollView
+          ref={rolagem}
+          showsVerticalScrollIndicator={false}
+          snapToInterval={ALTURA_ITEM}
+          decelerationRate="fast"
+          scrollEventThrottle={16}
+          nestedScrollEnabled
+          onScroll={Animated.event([{ nativeEvent: { contentOffset: { y } } }], { useNativeDriver: true })}
+          onMomentumScrollEnd={(e) => terminou(e.nativeEvent.contentOffset.y)}
+          onScrollEndDrag={(e) => terminou(e.nativeEvent.contentOffset.y)}
+          contentContainerStyle={{ paddingVertical: ALTURA_ITEM * Math.floor(ITENS_VISIVEIS / 2) }}
+          accessibilityLabel={rotulo}
+        >
+          {itens.map((n) => {
+            const centro = n * ALTURA_ITEM;
+            const faixa = [centro - 2 * ALTURA_ITEM, centro - ALTURA_ITEM, centro, centro + ALTURA_ITEM, centro + 2 * ALTURA_ITEM];
+            return (
+              <TouchableOpacity
+                key={n}
+                activeOpacity={0.6}
+                onPress={() => rolagem.current?.scrollTo({ y: centro, animated: true })}
+                style={styles.rodaItem}
+              >
+                <Animated.Text
+                  style={[
+                    styles.rodaNumero,
+                    {
+                      opacity: y.interpolate({ inputRange: faixa, outputRange: [0.12, 0.4, 1, 0.4, 0.12], extrapolate: "clamp" }),
+                      transform: [{ scale: y.interpolate({ inputRange: faixa, outputRange: [0.7, 0.82, 1.08, 0.82, 0.7], extrapolate: "clamp" }) }],
+                    },
+                  ]}
+                >
+                  {String(n).padStart(2, "0")}
+                </Animated.Text>
+              </TouchableOpacity>
+            );
+          })}
+        </Animated.ScrollView>
+        {/* Esmaece o topo e o fundo, para a roda parecer sumir nas pontas */}
+        <LinearGradient pointerEvents="none" colors={[colors.surface, `${colors.surface}00`]} style={[styles.esmaece, { top: 0 }]} />
+        <LinearGradient pointerEvents="none" colors={[`${colors.surface}00`, colors.surface]} style={[styles.esmaece, { bottom: 0 }]} />
+      </View>
       <Text style={styles.colunaRotulo}>{rotulo}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 12, ...sombra },
   topo: { flexDirection: "row", alignItems: "center", gap: 12 },
-  icone: { width: 40, height: 40, borderRadius: 14, backgroundColor: "#EAF3E4", alignItems: "center", justifyContent: "center" },
+  icone: { width: 40, height: 40, borderRadius: 14, backgroundColor: colors.verdeSuave, alignItems: "center", justifyContent: "center" },
   titulo: { fontSize: 15, fontWeight: "800", color: colors.textPrimary },
   status: { fontSize: 13, color: colors.textSecondary, marginTop: 1 },
   treino: { flexDirection: "row", alignItems: "center", backgroundColor: colors.background, borderRadius: 12, padding: 12 },
   treinoNome: { fontSize: 14, fontWeight: "700", color: colors.textPrimary },
   treinoInfo: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  origem: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: "#EAF3E4" },
+  origem: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: colors.verdeSuave },
   origemTxt: { fontSize: 10, fontWeight: "700", color: colors.primary },
   numeros: { flexDirection: "row", gap: 8 },
   numero: { flex: 1, backgroundColor: colors.background, borderRadius: 12, paddingVertical: 10, alignItems: "center" },
   numeroValor: { fontSize: 16, fontWeight: "800", color: colors.textPrimary },
   numeroRotulo: { fontSize: 10, color: colors.textSecondary, marginTop: 2 },
-  conectar: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#EAF3E4", borderRadius: 12, padding: 12 },
+  conectar: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.verdeSuave, borderRadius: 12, padding: 12 },
   conectarTxt: { flex: 1, fontSize: 12, lineHeight: 17, color: colors.textPrimary, fontWeight: "600" },
-  botao: { height: 46, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
+  botao: { height: 46, borderRadius: 14, backgroundColor: colors.botao, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
   botaoTxt: { color: "#fff", fontWeight: "700", fontSize: 14 },
   fundo: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
   folha: { backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 22, gap: 12 },
@@ -245,22 +316,25 @@ const styles = StyleSheet.create({
   rotulo: { fontSize: 13, color: colors.textSecondary, fontWeight: "600" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface },
-  chipSel: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipSel: { backgroundColor: colors.botao, borderColor: colors.primary },
   chipTxt: { fontSize: 13, color: colors.textPrimary },
   chipTxtSel: { color: "#fff", fontWeight: "700" },
   input: { height: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 14, fontSize: 16, color: colors.textPrimary, backgroundColor: colors.surface },
   previa: { fontSize: 13, color: colors.textPrimary, fontWeight: "600" },
-  erro: { fontSize: 13, color: "#C0392B" },
+  erro: { fontSize: 13, color: colors.erroTexto },
   nota: { fontSize: 11, lineHeight: 16, color: colors.textSecondary },
+  rodaCaixa: { alignItems: "center", width: 110 },
+  rodaJanela: { height: ALTURA_ITEM * ITENS_VISIVEIS, width: 110, overflow: "hidden" },
+  rodaItem: { height: ALTURA_ITEM, alignItems: "center", justifyContent: "center" },
+  rodaNumero: { fontSize: 34, fontWeight: "800", color: colors.textPrimary },
+  esmaece: { position: "absolute", left: 0, right: 0, height: ALTURA_ITEM * 0.9 },
+  faixa: { position: "absolute", left: 14, right: 14, top: 10 + ALTURA_ITEM, height: ALTURA_ITEM, borderRadius: 14, backgroundColor: colors.verdeSuave },
   relogio: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 14, backgroundColor: colors.surface, borderRadius: 18, borderWidth: 1, borderColor: colors.border, paddingVertical: 10 },
-  coluna: { alignItems: "center", minWidth: 96 },
-  seta: { width: 48, height: 36, alignItems: "center", justifyContent: "center" },
-  numeroGrande: { fontSize: 44, fontWeight: "800", color: colors.textPrimary, textAlign: "center", minWidth: 84, paddingVertical: 0 },
   colunaRotulo: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  doisPontos: { fontSize: 40, fontWeight: "800", color: colors.textSecondary, marginTop: -6 },
+  doisPontos: { fontSize: 34, fontWeight: "800", color: colors.textSecondary, marginTop: -22 },
   atalhos: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  atalho: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: "#EAF3E4" },
-  atalhoSel: { backgroundColor: colors.primary },
+  atalho: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.verdeSuave },
+  atalhoSel: { backgroundColor: colors.botao },
   atalhoTxt: { fontSize: 12, fontWeight: "600", color: colors.primary },
   atalhoTxtSel: { color: "#fff" },
 });

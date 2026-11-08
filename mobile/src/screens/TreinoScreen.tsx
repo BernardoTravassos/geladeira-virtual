@@ -1,11 +1,13 @@
-import React, { useCallback, useState } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useCallback, useState, useMemo } from "react";
 import BarraInferior from "../components/BarraInferior";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, sombra, degrade } from "../theme/colors";
+import { sombra, degrade } from "../theme/colors";
 import CardAtividade from "../components/CardAtividade";
 import { getProfile } from "../services/api";
 import { carregarDia, totaisDoRegistro } from "../utils/refeicoes";
@@ -15,6 +17,8 @@ import { useChaveDoDia } from "../utils/dia";
 const DIAS = ["D", "S", "T", "Q", "Q", "S", "S"];
 
 export default function TreinoScreen({ navigation }: any) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const chaveDia = useChaveDoDia();
   const [pesoKg, setPesoKg] = useState(70);
@@ -101,7 +105,7 @@ export default function TreinoScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   tela: { flex: 1, backgroundColor: colors.background },
   hero: { paddingTop: 54, paddingBottom: 26, alignItems: "center", borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden" },
   decoracao: { position: "absolute", width: 220, height: 220, borderRadius: 110, backgroundColor: "rgba(255,255,255,0.06)", top: -70, right: -60 },
@@ -119,7 +123,7 @@ const styles = StyleSheet.create({
   bolhaHoje: { borderColor: colors.primary },
   diaTxt: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
   atalho: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
-  icone: { width: 40, height: 40, borderRadius: 13, backgroundColor: "#EAF3E4", alignItems: "center", justifyContent: "center" },
+  icone: { width: 40, height: 40, borderRadius: 13, backgroundColor: colors.verdeSuave, alignItems: "center", justifyContent: "center" },
   atalhoTitulo: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
   atalhoSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
 });

@@ -1,6 +1,6 @@
 import React from "react";
 import Svg, { Rect, Path, Line } from "react-native-svg";
-import { colors } from "../theme/colors";
+
 
 type Props = {
   tamanho?: number;
@@ -19,11 +19,16 @@ type Props = {
  *
  * Desenhado em SVG (viewBox 100×100), então fica nítido em qualquer tamanho.
  */
+// O símbolo tem cores de marca FIXAS, iguais no modo claro e no escuro.
+const CREME = "#FAF9F4";
+const VERDE = "#1F5D3A";
+const LARANJA = "#FF7A45";
+
 export default function Logo({
   tamanho = 120,
   parte = "tudo",
-  corCorpo = colors.background,
-  corDetalhe = colors.primary,
+  corCorpo = CREME,
+  corDetalhe = VERDE,
 }: Props) {
   return (
     <Svg width={tamanho} height={tamanho} viewBox="0 0 100 100">
@@ -46,9 +51,9 @@ export default function Logo({
           {/* Folha brotando do topo */}
           <Path
             d="M50 25 C48 8 64 1 80 5 C80 20 68 29 50 25 Z"
-            fill={colors.accent}
+            fill={LARANJA}
           />
-          <Path d="M52 23 L71 11" stroke={corCorpo === colors.background ? colors.primary : colors.background} strokeWidth={2} strokeLinecap="round" />
+          <Path d="M52 23 L71 11" stroke={corCorpo === CREME ? VERDE : CREME} strokeWidth={2} strokeLinecap="round" />
         </>
       )}
     </Svg>

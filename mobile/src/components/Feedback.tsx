@@ -1,7 +1,9 @@
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
-import { colors } from "../theme/colors";
+
 
 type Tipo = "sucesso" | "erro";
 type Opcoes = { atraso?: number; duracao?: number };
@@ -22,10 +24,10 @@ const CaminhoAnimado = Animated.createAnimatedComponent(Path);
 const TAMANHO = 84;
 const COMPRIMENTO_CHECK = 52;
 
-const VISUAL: Record<Tipo, { cor: string; fundo: string; caminho: string; comprimento: number }> = {
-  sucesso: { cor: "#1BAF7A", fundo: "#E3F6EE", caminho: "M26 43 L37 54 L58 31", comprimento: COMPRIMENTO_CHECK },
-  erro: { cor: "#E0524A", fundo: "#FDECEA", caminho: "M30 30 L54 54 M54 30 L30 54", comprimento: 70 },
-};
+const visualDe = (colors: Cores): Record<Tipo, { cor: string; fundo: string; caminho: string; comprimento: number }> => ({
+  sucesso: { cor: "#1BAF7A", fundo: colors.sucessoFundo, caminho: "M26 43 L37 54 L58 31", comprimento: COMPRIMENTO_CHECK },
+  erro: { cor: "#E0524A", fundo: colors.erroFundo, caminho: "M30 30 L54 54 M54 30 L30 54", comprimento: 70 },
+});
 
 /**
  * Provedor do aviso de confirmação. Fica na raiz do app, por cima de todas as
@@ -33,6 +35,8 @@ const VISUAL: Record<Tipo, { cor: string; fundo: string; caminho: string; compri
  * seguida, que o aviso continua aparecendo.
  */
 export function FeedbackProvider({ children }: { children: React.ReactNode }) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const fundo = useRef(new Animated.Value(0)).current;
   const cartao = useRef(new Animated.Value(0)).current;
@@ -82,7 +86,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     [mostrar],
   );
 
-  const visual = aviso ? VISUAL[aviso.tipo] : VISUAL.sucesso;
+  const visual = aviso ? visualDe(colors)[aviso.tipo] : visualDe(colors).sucesso;
   const raio = 38;
   const circunferencia = 2 * Math.PI * raio;
 
@@ -141,7 +145,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   fundo: {
     ...(StyleSheet.absoluteFill as object),
     backgroundColor: "rgba(20, 30, 24, 0.45)",

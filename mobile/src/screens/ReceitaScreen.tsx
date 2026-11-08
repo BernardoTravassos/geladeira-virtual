@@ -1,12 +1,16 @@
-import React, { useState } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useState, useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, sombra, degrade } from "../theme/colors";
+import { sombra, degrade } from "../theme/colors";
 import { receitaPorId } from "../mocks/receitas";
 
 export default function ReceitaScreen({ navigation, route }: any) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const receita = receitaPorId(route.params?.id);
   const [marcados, setMarcados] = useState<number[]>([]);
@@ -95,7 +99,7 @@ export default function ReceitaScreen({ navigation, route }: any) {
 
           {!!receita.dica && (
             <View style={styles.dica}>
-              <Feather name="star" size={16} color="#6B4500" />
+              <Feather name="star" size={16} color={colors.avisoTexto} />
               <Text style={styles.dicaTxt}><Text style={{ fontWeight: "800" }}>Dica: </Text>{receita.dica}</Text>
             </View>
           )}
@@ -107,6 +111,8 @@ export default function ReceitaScreen({ navigation, route }: any) {
 }
 
 function Chip({ icone, texto }: { icone: keyof typeof Feather.glyphMap; texto: string }) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   return (
     <View style={styles.chip}>
       <Feather name={icone} size={13} color="#fff" />
@@ -116,6 +122,8 @@ function Chip({ icone, texto }: { icone: keyof typeof Feather.glyphMap; texto: s
 }
 
 function Nutri({ valor, rotulo, destaque }: { valor: string; rotulo: string; destaque?: boolean }) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   return (
     <View style={styles.nutriItem}>
       <Text style={[styles.nutriValor, destaque && { color: colors.accent }]}>{valor}</Text>
@@ -124,7 +132,7 @@ function Nutri({ valor, rotulo, destaque }: { valor: string; rotulo: string; des
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   tela: { flex: 1, backgroundColor: colors.background },
   hero: { paddingTop: 54, paddingBottom: 26, paddingHorizontal: 22, alignItems: "center", borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden" },
   decoracao: { position: "absolute", width: 220, height: 220, borderRadius: 110, backgroundColor: "rgba(255,255,255,0.06)", top: -70, right: -60 },
@@ -142,7 +150,7 @@ const styles = StyleSheet.create({
   nutriValor: { fontSize: 18, fontWeight: "800", color: colors.textPrimary },
   nutriRotulo: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
   nota: { fontSize: 11, color: colors.textSecondary, marginTop: -4 },
-  geladeira: { flexDirection: "row", gap: 10, alignItems: "center", backgroundColor: "#EAF3E4", borderRadius: 14, padding: 12 },
+  geladeira: { flexDirection: "row", gap: 10, alignItems: "center", backgroundColor: colors.verdeSuave, borderRadius: 14, padding: 12 },
   geladeiraTxt: { flex: 1, fontSize: 13, color: colors.textPrimary, lineHeight: 18 },
   secao: { fontSize: 18, fontWeight: "800", color: colors.textPrimary, marginTop: 8 },
   linha: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 13 },
@@ -152,11 +160,11 @@ const styles = StyleSheet.create({
   ingrediente: { flex: 1, fontSize: 15, color: colors.textPrimary },
   ingredienteFeito: { color: colors.textSecondary, textDecorationLine: "line-through" },
   passo: { flexDirection: "row", gap: 12, paddingVertical: 14 },
-  numero: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginTop: 1 },
+  numero: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.botao, alignItems: "center", justifyContent: "center", marginTop: 1 },
   numeroTxt: { color: "#fff", fontWeight: "800", fontSize: 13 },
   passoTxt: { flex: 1, fontSize: 15, lineHeight: 22, color: colors.textPrimary },
-  dica: { flexDirection: "row", gap: 10, backgroundColor: "#FFF4DC", borderRadius: 14, padding: 14, alignItems: "flex-start" },
-  dicaTxt: { flex: 1, fontSize: 13, lineHeight: 19, color: "#6B4500" },
+  dica: { flexDirection: "row", gap: 10, backgroundColor: colors.avisoFundo, borderRadius: 14, padding: 14, alignItems: "flex-start" },
+  dicaTxt: { flex: 1, fontSize: 13, lineHeight: 19, color: colors.avisoTexto },
   aviso: { textAlign: "center", fontSize: 11, color: colors.textSecondary, marginTop: 4 },
   vazio: { fontSize: 15, color: colors.textSecondary, marginBottom: 12 },
   link: { color: colors.primary, fontWeight: "700" },

@@ -1,8 +1,10 @@
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
 import React, { useEffect, useMemo, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Animated, Dimensions, Modal, PanResponder, View, Text, TouchableOpacity, StyleSheet, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { colors } from "../theme/colors";
+
 
 type Props = {
   visivel: boolean;
@@ -131,6 +133,8 @@ export default function PaywallCard({
   tempoDisponivel,
   diasGratis,
 }: Props) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   // Arrastar o painel para baixo fecha. O gesto vale no painel inteiro (não só
   // no puxador): quem puxa pelo meio do card espera que ele desça também.
@@ -200,7 +204,7 @@ export default function PaywallCard({
           <View style={styles.puxador} />
 
           <View style={styles.icone}>
-            <Feather name="coffee" size={24} color={colors.surface} />
+            <Feather name="coffee" size={24} color={colors.textoSobreMarca} />
           </View>
 
           <Text style={styles.titulo}>Você usou sua consulta de hoje</Text>
@@ -247,7 +251,7 @@ export default function PaywallCard({
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   fundo: {
     flex: 1,
     backgroundColor: "rgba(27, 27, 27, 0.55)",
@@ -304,7 +308,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: "#EAF3E4",
+    backgroundColor: colors.verdeSuave,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -312,12 +316,12 @@ const styles = StyleSheet.create({
   botaoAssinar: {
     alignSelf: "stretch",
     height: 52,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.botao,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
-  botaoAssinarTexto: { color: colors.surface, fontSize: 15, fontWeight: "700" },
+  botaoAssinarTexto: { color: colors.textoSobreMarca, fontSize: 15, fontWeight: "700" },
   rodape: { fontSize: 11, color: colors.textSecondary, marginTop: 10, textAlign: "center" },
   botaoDepois: {
     fontSize: 13,

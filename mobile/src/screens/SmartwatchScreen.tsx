@@ -1,10 +1,12 @@
-import React, { useCallback, useState } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useCallback, useState, useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, sombra, degrade } from "../theme/colors";
+import { sombra, degrade } from "../theme/colors";
 import { useFeedback } from "../components/Feedback";
 import { abrirDadosHealthConnect } from "../utils/healthConnect";
 import { conectarSaude, definirSmartwatchConectado, modoSaude, smartwatchConectado } from "../utils/saude";
@@ -16,6 +18,8 @@ const LEEMOS: { icone: keyof typeof Feather.glyphMap; texto: string }[] = [
 ];
 
 export default function SmartwatchScreen({ navigation }: any) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const feedback = useFeedback();
   const [conectado, setConectado] = useState(false);
@@ -70,7 +74,7 @@ export default function SmartwatchScreen({ navigation }: any) {
         <View style={styles.corpo}>
           {modo === "simulado" && (
             <View style={styles.teste}>
-              <Feather name="info" size={14} color="#6B4500" />
+              <Feather name="info" size={14} color={colors.avisoTexto} />
               <Text style={styles.testeTxt}>Versão de testes: ao conectar, os dados do relógio são simulados. A leitura real exige uma versão instalada do app, fora do Expo Go.</Text>
             </View>
           )}
@@ -124,7 +128,7 @@ export default function SmartwatchScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   tela: { flex: 1, backgroundColor: colors.background },
   hero: { paddingTop: 54, paddingBottom: 26, alignItems: "center", borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden" },
   decoracao: { position: "absolute", width: 220, height: 220, borderRadius: 110, backgroundColor: "rgba(255,255,255,0.06)", top: -70, right: -60 },
@@ -136,21 +140,21 @@ const styles = StyleSheet.create({
   ponto: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.6)" },
   estadoTxt: { color: "#fff", fontSize: 13, fontWeight: "700" },
   corpo: { padding: 20, gap: 12 },
-  teste: { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: "#FFF4DC", borderRadius: 12, padding: 12 },
-  testeTxt: { flex: 1, fontSize: 12, lineHeight: 17, color: "#6B4500" },
+  teste: { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: colors.avisoFundo, borderRadius: 12, padding: 12 },
+  testeTxt: { flex: 1, fontSize: 12, lineHeight: 17, color: colors.avisoTexto },
   secao: { fontSize: 18, fontWeight: "800", color: colors.textPrimary, marginTop: 6 },
   card: { backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 16, ...sombra },
   linha: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 11 },
   divisor: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  icone: { width: 34, height: 34, borderRadius: 11, backgroundColor: "#EAF3E4", alignItems: "center", justifyContent: "center" },
+  icone: { width: 34, height: 34, borderRadius: 11, backgroundColor: colors.verdeSuave, alignItems: "center", justifyContent: "center" },
   linhaTxt: { flex: 1, fontSize: 14, color: colors.textPrimary },
   nota: { fontSize: 11, lineHeight: 16, color: colors.textSecondary },
   paragrafo: { fontSize: 14, lineHeight: 21, color: colors.textPrimary },
   forte: { fontWeight: "700" },
-  botao: { height: 52, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, marginTop: 6 },
+  botao: { height: 52, borderRadius: 14, backgroundColor: colors.botao, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, marginTop: 6 },
   botaoTxt: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  verDados: { height: 48, borderRadius: 14, backgroundColor: "#EAF3E4", alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, marginTop: 6 },
+  verDados: { height: 48, borderRadius: 14, backgroundColor: colors.verdeSuave, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, marginTop: 6 },
   verDadosTxt: { color: colors.primary, fontWeight: "700", fontSize: 14 },
-  desconectar: { height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: "#F0C4BF", alignItems: "center", justifyContent: "center", marginTop: 6 },
-  desconectarTxt: { color: "#C0392B", fontWeight: "700", fontSize: 14 },
+  desconectar: { height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: colors.erroBorda, alignItems: "center", justifyContent: "center", marginTop: 6 },
+  desconectarTxt: { color: colors.erroTexto, fontWeight: "700", fontSize: 14 },
 });

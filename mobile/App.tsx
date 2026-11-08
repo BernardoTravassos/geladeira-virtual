@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
-import { NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
+import { DarkTheme, DefaultTheme, NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
+import { TemaProvider, useTema } from "./src/theme/tema";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -42,7 +43,8 @@ const ABAS = ["Home", "Treino", "Historico", "Perfil"];
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-export default function App() {
+function Principal() {
+  const { cores, escuro } = useTema();
   const navegacao = useNavigationContainerRef();
   const transicao = useRef<TransicaoLogoRef>(null);
   const rotaAnterior = useRef<string | undefined>(undefined);
@@ -73,6 +75,10 @@ export default function App() {
     <View style={{ flex: 1 }}>
     <NavigationContainer
       ref={navegacao}
+      theme={{
+        ...(escuro ? DarkTheme : DefaultTheme),
+        colors: { ...(escuro ? DarkTheme : DefaultTheme).colors, background: cores.background, card: cores.surface, text: cores.textPrimary, border: cores.border, primary: cores.primary },
+      }}
       onReady={() => { rotaAnterior.current = navegacao.getCurrentRoute()?.name; }}
       onStateChange={() => {
         // Toca a transição com o símbolo a cada troca de tela (ir ou voltar).
@@ -107,5 +113,13 @@ export default function App() {
     <TransicaoLogo ref={transicao} />
     </View>
     </FeedbackProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <TemaProvider>
+      <Principal />
+    </TemaProvider>
   );
 }

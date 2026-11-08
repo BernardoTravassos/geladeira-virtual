@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { semente } from "./aleatorio";
 import { DEV } from "../config/dev";
 import { chaveData } from "./dia";
 import { lerHealthConnect, nativoDisponivel, pedirPermissaoHealthConnect } from "./healthConnect";
@@ -115,13 +116,6 @@ export async function removerTreinoManual(id: string, data = new Date()) {
 
 // ───────────── simulação do smartwatch (só DEV.SIMULAR_SMARTWATCH) ─────────────
 
-function semente(n: number) {
-  let s = n >>> 0;
-  return () => {
-    s = (s * 1664525 + 1013904223) >>> 0;
-    return s / 4294967296;
-  };
-}
 
 /**
  * Dados inventados, mas estáveis: o mesmo dia gera sempre o mesmo resultado.

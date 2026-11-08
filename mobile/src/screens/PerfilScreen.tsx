@@ -1,4 +1,6 @@
-import React, { useCallback, useState } from "react";
+import { useCores, useTema } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useCallback, useState, useMemo } from "react";
 import { validarSenha } from "../utils/validacao";
 import BarraInferior from "../components/BarraInferior";
 import { useFeedback } from "../components/Feedback";
@@ -11,7 +13,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, sombra, degrade } from "../theme/colors";
+import { sombra, degrade } from "../theme/colors";
 import { alterarSenha, getConta, getProfile, saveProfile } from "../services/api";
 import { calcularMetas, calcularMetaAguaMl, nivelDoPerfil, nivelPorRotulo, NIVEIS_ATIVIDADE, PerfilApi } from "../utils/nutricao";
 import CampoSenha from "../components/CampoSenha";
@@ -78,6 +80,9 @@ function valorParaEditar(p: PerfilApi | null, chave: Chave): string {
 }
 
 export default function PerfilScreen({ navigation }: any) {
+  const colors = useCores();
+  const tema = useTema();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const feedback = useFeedback();
   const insets = useSafeAreaInsets();
   const [perfil, setPerfil] = useState<PerfilApi | null>(null);
@@ -283,6 +288,31 @@ export default function PerfilScreen({ navigation }: any) {
             )}
             <Text style={styles.nota}>Calculadas a partir dos seus dados e objetivo. São uma referência geral, não uma prescrição nutricional.</Text>
 
+            <Text style={styles.secao}>Aparência</Text>
+            <View style={[styles.card, styles.aparencia]}>
+              {([
+                { modo: "sistema", rotulo: "Automático", icone: "smartphone" },
+                { modo: "claro", rotulo: "Claro", icone: "sun" },
+                { modo: "escuro", rotulo: "Escuro", icone: "moon" },
+              ] as const).map((o) => {
+                const ativo = tema.modo === o.modo;
+                return (
+                  <TouchableOpacity
+                    key={o.modo}
+                    style={[styles.opcaoTema, ativo && styles.opcaoTemaAtiva]}
+                    onPress={() => tema.definirModo(o.modo)}
+                    activeOpacity={0.8}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: ativo }}
+                  >
+                    <Feather name={o.icone} size={18} color={ativo ? colors.textoSobreMarca : colors.textSecondary} />
+                    <Text style={[styles.opcaoTemaTxt, ativo && { color: colors.textoSobreMarca }]}>{o.rotulo}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.nota}>"Automático" acompanha o modo claro ou escuro do seu celular.</Text>
+
             <Text style={styles.secao}>Dispositivos</Text>
             <View style={styles.card}>
               <TouchableOpacity style={styles.linha} activeOpacity={0.7} onPress={() => navigation.navigate("Smartwatch")} accessibilityRole="button">
@@ -308,7 +338,7 @@ export default function PerfilScreen({ navigation }: any) {
             </View>
 
             <TouchableOpacity style={styles.sair} onPress={confirmarSaida} activeOpacity={0.8}>
-              <Feather name="log-out" size={16} color="#C0392B" />
+              <Feather name="log-out" size={16} color={colors.erroTexto} />
               <Text style={styles.sairTxt}>Sair da conta</Text>
             </TouchableOpacity>
             <Text style={styles.versao}>Geladeira Virtual · versão de testes</Text>
@@ -415,6 +445,8 @@ export default function PerfilScreen({ navigation }: any) {
 }
 
 function LinhaCalculo({ rotulo, valor, nota }: { rotulo: string; valor: string; nota: string }) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   return (
     <View>
       <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
@@ -427,6 +459,8 @@ function LinhaCalculo({ rotulo, valor, nota }: { rotulo: string; valor: string; 
 }
 
 function Meta({ valor, rotulo }: { valor: string; rotulo: string }) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   return (
     <View style={styles.meta}>
       <Text style={styles.metaValor}>{valor}</Text>
@@ -435,7 +469,7 @@ function Meta({ valor, rotulo }: { valor: string; rotulo: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   hero: { paddingTop: 54, paddingBottom: 30, alignItems: "center", borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden" },
   decoracao: { position: "absolute", width: 220, height: 220, borderRadius: 110, backgroundColor: "rgba(255,255,255,0.06)", top: -70, right: -60 },
@@ -449,19 +483,23 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 16, ...sombra },
   linha: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
   linhaDivisor: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  icone: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#EAF3E4", alignItems: "center", justifyContent: "center" },
+  icone: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.verdeSuave, alignItems: "center", justifyContent: "center" },
   rotulo: { fontSize: 12, color: colors.textSecondary },
   valor: { fontSize: 15, fontWeight: "600", color: colors.textPrimary, marginTop: 1 },
   metas: { flexDirection: "row", flexWrap: "wrap", paddingVertical: 14, gap: 6 },
   meta: { width: "31%", alignItems: "center", paddingVertical: 8 },
   metaValor: { fontSize: 17, fontWeight: "800", color: colors.primary },
   metaRotulo: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
+  aparencia: { flexDirection: "row", gap: 8, padding: 8 },
+  opcaoTema: { flex: 1, alignItems: "center", gap: 6, paddingVertical: 12, borderRadius: 14 },
+  opcaoTemaAtiva: { backgroundColor: colors.botao },
+  opcaoTemaTxt: { fontSize: 12, fontWeight: "700", color: colors.textSecondary },
   comoCalc: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingVertical: 4 },
   comoCalcTxt: { color: colors.primary, fontWeight: "700", fontSize: 13 },
-  avisoCalc: { fontSize: 12, lineHeight: 17, color: "#6B4500", backgroundColor: "#FFF4DC", borderRadius: 10, padding: 10 },
+  avisoCalc: { fontSize: 12, lineHeight: 17, color: colors.avisoTexto, backgroundColor: colors.avisoFundo, borderRadius: 10, padding: 10 },
   nota: { fontSize: 11, color: colors.textSecondary, lineHeight: 16, marginTop: -4 },
-  sair: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#F0C4BF", marginTop: 8 },
-  sairTxt: { color: "#C0392B", fontWeight: "700", fontSize: 15 },
+  sair: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: colors.erroBorda, marginTop: 8 },
+  sairTxt: { color: colors.erroTexto, fontWeight: "700", fontSize: 15 },
   versao: { textAlign: "center", fontSize: 11, color: colors.textSecondary, marginTop: 4 },
   fundo: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
   folha: { backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 22, gap: 14 },
@@ -469,15 +507,15 @@ const styles = StyleSheet.create({
   folhaTitulo: { fontSize: 20, fontWeight: "800", color: colors.textPrimary },
   input: { height: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 14, fontSize: 16, color: colors.textPrimary, backgroundColor: colors.surface },
   opcao: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1.5, borderColor: colors.border, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16, backgroundColor: colors.surface },
-  opcaoSel: { borderColor: colors.primary, backgroundColor: "#EAF3E4" },
+  opcaoSel: { borderColor: colors.primary, backgroundColor: colors.verdeSuave },
   opcaoTxt: { fontSize: 15, color: colors.textPrimary },
   opcaoTxtSel: { color: colors.primary, fontWeight: "700" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 22, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface },
-  chipMarcado: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipMarcado: { backgroundColor: colors.botao, borderColor: colors.primary },
   chipTxt: { fontSize: 14, color: colors.textPrimary },
   chipTxtMarcado: { color: "#fff", fontWeight: "600" },
-  erro: { color: "#C0392B", fontSize: 13, lineHeight: 18 },
-  botao: { height: 50, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  erro: { color: colors.erroTexto, fontSize: 13, lineHeight: 18 },
+  botao: { height: 50, borderRadius: 14, backgroundColor: colors.botao, alignItems: "center", justifyContent: "center" },
   botaoTxt: { color: "#fff", fontWeight: "700", fontSize: 15 },
 });

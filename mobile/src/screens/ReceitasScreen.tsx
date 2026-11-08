@@ -1,11 +1,15 @@
-import React from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, sombra } from "../theme/colors";
+import { sombra } from "../theme/colors";
 import { RECEITAS } from "../mocks/receitas";
 
 export default function ReceitasScreen({ navigation }: any) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   return (
     <View style={styles.tela}>
@@ -32,14 +36,14 @@ export default function ReceitasScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   tela: { flex: 1, backgroundColor: colors.background },
   topo: { flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 56, paddingHorizontal: 20, paddingBottom: 12 },
   voltar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   titulo: { fontSize: 22, fontWeight: "800", color: colors.textPrimary },
   conteudo: { padding: 20, gap: 12 },
   card: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: colors.surface, borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 14, ...sombra },
-  icone: { width: 46, height: 46, borderRadius: 15, backgroundColor: "#EAF3E4", alignItems: "center", justifyContent: "center" },
+  icone: { width: 46, height: 46, borderRadius: 15, backgroundColor: colors.verdeSuave, alignItems: "center", justifyContent: "center" },
   nome: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
   info: { fontSize: 12, color: colors.textSecondary, marginTop: 3 },
   aviso: { textAlign: "center", fontSize: 11, color: colors.textSecondary, marginTop: 6 },

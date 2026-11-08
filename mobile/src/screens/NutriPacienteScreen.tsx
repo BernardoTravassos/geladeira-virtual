@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useState, useMemo } from "react";
 import { useFeedback } from "../components/Feedback";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -6,7 +8,7 @@ import {
   KeyboardAvoidingView, Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { colors } from "../theme/colors";
+
 import { serie } from "../theme/graficos";
 import { PACIENTES } from "../mocks/nutricionista";
 import GraficoColunas from "../components/GraficoColunas";
@@ -14,6 +16,8 @@ import Medidor from "../components/Medidor";
 import BarraTeclado, { ID_BARRA_TECLADO } from "../components/BarraTeclado";
 
 export default function NutriPacienteScreen({ route, navigation }: any) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const feedback = useFeedback();
   const insets = useSafeAreaInsets();
   const paciente = PACIENTES.find((p) => p.id === route.params?.id) ?? PACIENTES[0];
@@ -282,6 +286,8 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
 }
 
 function ResumoSemana({ valor, rotulo }: { valor: string; rotulo: string }) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   return (
     <View style={styles.resumoItem}>
       <Text style={styles.resumoValor}>{valor}</Text>
@@ -291,6 +297,8 @@ function ResumoSemana({ valor, rotulo }: { valor: string; rotulo: string }) {
 }
 
 function Indicador({ icone, valor, rotulo }: { icone: any; valor: string; rotulo: string }) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   return (
     <View style={styles.indicador}>
       <Feather name={icone} size={15} color={colors.primary} />
@@ -300,7 +308,7 @@ function Indicador({ icone, valor, rotulo }: { icone: any; valor: string; rotulo
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   tela: { flex: 1, backgroundColor: colors.background },
   conteudo: { padding: 20, paddingTop: 52, paddingBottom: 36, gap: 12 },
   cabecalho: { flexDirection: "row", alignItems: "center", gap: 14 },
@@ -349,7 +357,7 @@ const styles = StyleSheet.create({
   linhaInfo: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
   linhaValor: { fontSize: 12, fontWeight: "700", color: colors.textPrimary },
   iconeRedondo: {
-    width: 30, height: 30, borderRadius: 15, backgroundColor: "#EAF3E4",
+    width: 30, height: 30, borderRadius: 15, backgroundColor: colors.verdeSuave,
     alignItems: "center", justifyContent: "center",
   },
   vazio: { alignItems: "center", gap: 7, paddingVertical: 12 },
@@ -369,8 +377,8 @@ const styles = StyleSheet.create({
   ajuda: { fontSize: 11, color: colors.textSecondary, lineHeight: 16 },
   acoes: { flexDirection: "row", gap: 10 },
   botao: { flex: 1, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  botaoPrimario: { backgroundColor: colors.primary },
-  botaoPrimarioTexto: { color: colors.surface, fontWeight: "700", fontSize: 14 },
+  botaoPrimario: { backgroundColor: colors.botao },
+  botaoPrimarioTexto: { color: colors.textoSobreMarca, fontWeight: "700", fontSize: 14 },
   botaoSecundario: { borderWidth: 1, borderColor: colors.border },
   botaoSecundarioTexto: { color: colors.textSecondary, fontWeight: "600", fontSize: 14 },
 });

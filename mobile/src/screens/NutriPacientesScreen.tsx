@@ -1,12 +1,16 @@
-import React from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { colors } from "../theme/colors";
+
 import { NUTRICIONISTA, PACIENTES, type Paciente } from "../mocks/nutricionista";
 
 /** Vagas livres aparecem como espaço vazio, para o limite do plano ficar visível. */
 export default function NutriPacientesScreen({ navigation }: any) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const vagasLivres = NUTRICIONISTA.vagas - PACIENTES.length;
 
@@ -81,6 +85,8 @@ export default function NutriPacientesScreen({ navigation }: any) {
 }
 
 function CartaoPaciente({ paciente, onPress }: { paciente: Paciente; onPress: () => void }) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const diferenca = paciente.pesoKg - paciente.pesoInicialKg;
   const semRegistroHoje = paciente.consumidasHoje === 0;
 
@@ -122,7 +128,7 @@ function CartaoPaciente({ paciente, onPress }: { paciente: Paciente; onPress: ()
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   tela: { flex: 1, backgroundColor: colors.background },
   conteudo: { padding: 20, paddingTop: 52, paddingBottom: 32, gap: 12 },
   cabecalho: { flexDirection: "row", alignItems: "flex-start" },
@@ -130,15 +136,15 @@ const styles = StyleSheet.create({
   nome: { fontSize: 19, fontWeight: "700", color: colors.textPrimary, marginTop: 2 },
   crn: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
   botaoIcone: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: "#EAF3E4",
+    width: 36, height: 36, borderRadius: 18, backgroundColor: colors.verdeSuave,
     alignItems: "center", justifyContent: "center",
   },
 
   cardPlano: {
-    backgroundColor: colors.primary, borderRadius: 16, padding: 16, gap: 10, marginTop: 4,
+    backgroundColor: colors.botao, borderRadius: 16, padding: 16, gap: 10, marginTop: 4,
   },
   planoTopo: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  planoNome: { color: colors.background, fontWeight: "700", fontSize: 14 },
+  planoNome: { color: colors.textoSobreMarca, fontWeight: "700", fontSize: 14 },
   planoVagas: { color: "#CFE6D8", fontSize: 12 },
   vagasLinha: { flexDirection: "row", gap: 5 },
   vaga: { flex: 1, height: 5, borderRadius: 3 },
@@ -153,7 +159,7 @@ const styles = StyleSheet.create({
     borderRadius: 16, padding: 14, flexDirection: "row", alignItems: "center", gap: 12,
   },
   avatar: {
-    width: 42, height: 42, borderRadius: 21, backgroundColor: "#EAF3E4",
+    width: 42, height: 42, borderRadius: 21, backgroundColor: colors.verdeSuave,
     alignItems: "center", justifyContent: "center",
   },
   avatarTexto: { fontSize: 17, fontWeight: "700", color: colors.primary },
@@ -161,16 +167,16 @@ const styles = StyleSheet.create({
   cardInfo: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
   cardDireita: { alignItems: "flex-end", gap: 4 },
   selo: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 9 },
-  seloOk: { backgroundColor: "#EAF3E4" },
-  seloAtencao: { backgroundColor: "#FCEFE7" },
+  seloOk: { backgroundColor: colors.verdeSuave },
+  seloAtencao: { backgroundColor: colors.avisoFundo },
   seloTexto: { fontSize: 10, fontWeight: "700" },
   seloTextoOk: { color: colors.primary },
-  seloTextoAtencao: { color: "#B4531F" },
+  seloTextoAtencao: { color: colors.avisoTexto },
   cardUltimo: { fontSize: 10, color: colors.textSecondary },
 
   cardVazio: {
     borderWidth: 1.5, borderStyle: "dashed", borderColor: colors.primaryLight,
-    backgroundColor: "#F3F8EE", borderRadius: 16, padding: 18, alignItems: "center", gap: 5,
+    backgroundColor: colors.verdeSuave, borderRadius: 16, padding: 18, alignItems: "center", gap: 5,
   },
   cardVazioTexto: { fontSize: 13, fontWeight: "700", color: colors.textPrimary },
   cardVazioSub: { fontSize: 11, color: colors.textSecondary, textAlign: "center" },

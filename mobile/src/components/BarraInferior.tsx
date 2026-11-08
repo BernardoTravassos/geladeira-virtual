@@ -1,10 +1,12 @@
-import React, { useEffect, useRef } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useEffect, useRef, useMemo } from "react";
 import { Animated, Easing, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, degrade } from "../theme/colors";
+import { degrade } from "../theme/colors";
 
 export type AbaAtiva = "Home" | "Treino" | "Historico" | "Perfil";
 
@@ -33,6 +35,8 @@ function Icone({ chave, cor }: { chave: AbaAtiva; cor: string }) {
  * e um pulso suave que chama a atenção para a ação principal).
  */
 export default function BarraInferior({ ativa, onCamera }: Props) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const navegacao = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const pulso = useRef(new Animated.Value(0)).current;
@@ -105,7 +109,7 @@ export default function BarraInferior({ ativa, onCamera }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   area: { position: "absolute", left: 14, right: 14, alignItems: "center" },
   barra: {
     flexDirection: "row",
@@ -127,7 +131,7 @@ const styles = StyleSheet.create({
   vao: { width: 78 },
   aba: { alignItems: "center", gap: 2, minWidth: 56, paddingVertical: 4 },
   bolha: { width: 44, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
-  bolhaLigada: { backgroundColor: "#E3F0E6" },
+  bolhaLigada: { backgroundColor: colors.verdeSuave },
   rotulo: { fontSize: 10, fontWeight: "600", color: colors.textSecondary },
   rotuloLigado: { color: colors.primary, fontWeight: "800" },
   fabCaixa: { position: "absolute", top: -26, alignItems: "center", justifyContent: "center" },

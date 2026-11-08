@@ -4,7 +4,7 @@
     "slug": "geladeira-virtual",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "splash": {
       "backgroundColor": "#1F5D3A"
     },

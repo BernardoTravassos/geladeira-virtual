@@ -1,7 +1,9 @@
-import React, { useState } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useState, useMemo } from "react";
 import { View, TextInput, TouchableOpacity, StyleSheet, TextInputProps } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { colors } from "../theme/colors";
+
 
 type Props = Omit<TextInputProps, "secureTextEntry"> & {
   value: string;
@@ -19,6 +21,8 @@ type Props = Omit<TextInputProps, "secureTextEntry"> & {
  * para quem estiver olhando a tela por cima do ombro.
  */
 export default function CampoSenha({ style, ...props }: Props) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const [visivel, setVisivel] = useState(false);
 
   return (
@@ -49,7 +53,7 @@ export default function CampoSenha({ style, ...props }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   caixa: {
     height: 48,
     borderWidth: 1,

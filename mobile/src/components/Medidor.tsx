@@ -1,7 +1,9 @@
-import React, { useCallback, useRef } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useCallback, useRef, useMemo } from "react";
 import { View, Text, StyleSheet, Animated, Easing } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { colors } from "../theme/colors";
+
 import { grafico } from "../theme/graficos";
 
 export const COR_EXCESSO = "#F4A0A0"; // vermelho claro
@@ -36,10 +38,13 @@ export default function Medidor({
   atual,
   meta,
   unidade = "g",
-  cor = colors.primaryLight,
+  cor: corProp,
   atraso = 0,
   avisarExcesso = false,
 }: Props) {
+  const colors = useCores();
+  const cor = corProp ?? colors.primaryLight;
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const passou = avisarExcesso && meta > 0 && atual > meta;
   // Com excesso, a trilha passa a representar o total consumido: a parte até a
   // meta fica na cor normal e o que sobrou, em vermelho claro.
@@ -96,16 +101,16 @@ export default function Medidor({
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   caixa: { gap: 6 },
   linhaTopo: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
   rotulo: { fontSize: 11, color: colors.textSecondary, fontWeight: "600" },
   valor: { fontSize: 12, fontWeight: "700", color: colors.textPrimary },
   meta: { fontSize: 11, fontWeight: "400", color: colors.textSecondary },
-  trilha: { height: 6, borderRadius: 3, backgroundColor: grafico.trilha, overflow: "hidden", flexDirection: "row" },
+  trilha: { height: 6, borderRadius: 3, backgroundColor: colors.trilha, overflow: "hidden", flexDirection: "row" },
   preenchimento: { height: "100%", borderRadius: 3 },
   semBordaDireita: { borderTopRightRadius: 0, borderBottomRightRadius: 0 },
   excesso: { height: "100%", backgroundColor: COR_EXCESSO },
-  valorExcesso: { color: "#C0392B" },
-  excessoTxt: { fontSize: 11, fontWeight: "700", color: "#C0392B" },
+  valorExcesso: { color: colors.erroTexto },
+  excessoTxt: { fontSize: 11, fontWeight: "700", color: colors.erroTexto },
 });

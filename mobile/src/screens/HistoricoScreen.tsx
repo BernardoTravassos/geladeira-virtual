@@ -1,10 +1,12 @@
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import BarraInferior from "../components/BarraInferior";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { colors } from "../theme/colors";
+
 import { formatarDuracao, modoSaude } from "../utils/saude";
 import { serie } from "../theme/graficos";
 import GraficoColunas from "../components/GraficoColunas";
@@ -27,6 +29,8 @@ const media = (valores: number[]) => (valores.length ? valores.reduce((a, b) => 
 const fmt = (n: number) => Math.round(n).toLocaleString("pt-BR");
 
 export default function HistoricoScreen({ navigation, route }: any) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const [periodo, setPeriodo] = useState<PeriodoHistorico>(route.params?.periodo ?? "semana");
   const [perfil, setPerfil] = useState<PerfilApi | null>(null);
@@ -52,7 +56,15 @@ export default function HistoricoScreen({ navigation, route }: any) {
 
   const painel = useMemo(() => {
     if (!dias) return null;
-    const registrados = dias.filter((d) => d.registrado);
+    // Hoje ainda está em andamento (um café da manhã = 300 kcal "no dia"), então
+    // as MÉDIAS e a contagem de dias usam só os dias completos. O gráfico mostra
+    // tudo, inclusive hoje. Se só existir hoje, as contas usam hoje mesmo.
+    const completos = periodo === "dia" ? dias : dias.slice(0, -1);
+    const registradosTodos = dias.filter((d) => d.registrado);
+    const completosRegistrados = completos.filter((d) => d.registrado);
+    const statsSemHoje = periodo !== "dia" && completosRegistrados.length > 0;
+    const registrados = statsSemHoje ? completosRegistrados : registradosTodos;
+    const baseDias = statsSemHoje ? completos : dias;
     const naMeta = registrados.filter((d) => d.kcal >= metas.calorias * 0.85 && d.kcal <= metas.calorias * 1.1).length;
     const usaExemplo = dias.some((d) => d.exemplo && d.registrado);
 
@@ -91,14 +103,28 @@ export default function HistoricoScreen({ navigation, route }: any) {
       rotuloACada = 5;
     } else {
       const porMes = new Map<string, { rotulo: string; kcal: number[]; agua: number[]; gastas: number[] }>();
+      // Médias mensais sem o dia de hoje (incompleto), a menos que seja o único do mês.
+      const hojeDia = dias[dias.length - 1];
+      const hojePorMes = new Map<string, { kcal: number[]; agua: number[]; gastas: number[] }>();
       for (const d of dias) {
         const k = `${d.data.getFullYear()}-${d.data.getMonth()}`;
         if (!porMes.has(k)) porMes.set(k, { rotulo: MESES[d.data.getMonth()], kcal: [], agua: [], gastas: [] });
-        if (d.registrado) porMes.get(k)!.kcal.push(d.kcal);
-        if (d.aguaMl > 0) porMes.get(k)!.agua.push(d.aguaMl);
-        if (d.gastasKcal > 0) porMes.get(k)!.gastas.push(d.gastasKcal);
+        const alvo = d === hojeDia
+          ? (hojePorMes.get(k) ?? hojePorMes.set(k, { kcal: [], agua: [], gastas: [] }).get(k)!)
+          : porMes.get(k)!;
+        if (d.registrado) alvo.kcal.push(d.kcal);
+        if (d.aguaMl > 0) alvo.agua.push(d.aguaMl);
+        if (d.gastasKcal > 0) alvo.gastas.push(d.gastasKcal);
       }
-      const meses = [...porMes.values()];
+      const meses = [...porMes.entries()].map(([k, m]) => {
+        const h = hojePorMes.get(k);
+        return {
+          rotulo: m.rotulo,
+          kcal: m.kcal.length ? m.kcal : h?.kcal ?? [],
+          agua: m.agua.length ? m.agua : h?.agua ?? [],
+          gastas: m.gastas.length ? m.gastas : h?.gastas ?? [],
+        };
+      });
       rotulos = meses.map((m) => m.rotulo);
       valores = meses.map((m) => Math.round(media(m.kcal)));
       valoresAgua = meses.map((m) => Math.round(media(m.agua)));
@@ -125,17 +151,17 @@ export default function HistoricoScreen({ navigation, route }: any) {
     }
     const top = [...contagem].map(([nome, v]) => ({ nome, ...v })).sort((a, b) => b.dias - a.dias || b.gramas - a.gramas).slice(0, 5);
 
-    const diasComAgua = dias.filter((d) => d.aguaMl > 0);
+    const diasComAgua = baseDias.filter((d) => d.aguaMl > 0).length ? baseDias.filter((d) => d.aguaMl > 0) : dias.filter((d) => d.aguaMl > 0);
     const aguaMedia = media(diasComAgua.map((d) => d.aguaMl));
     const aguaNaMeta = diasComAgua.filter((d) => d.aguaMl >= metaAgua).length;
 
     const diasTreinou = dias.filter((d) => d.treinou).length;
-    const diasComGasto = dias.filter((d) => d.gastasKcal > 0);
+    const diasComGasto = baseDias.filter((d) => d.gastasKcal > 0).length ? baseDias.filter((d) => d.gastasKcal > 0) : dias.filter((d) => d.gastasKcal > 0);
     const gastoMedio = media(diasComGasto.map((d) => d.gastasKcal));
     const treinosLista = dias.flatMap((d) => d.treinos);
     const usaExemploSaude = dias.some((d) => d.treinos.some((t) => t.origem !== "manual") || (d.passos ?? 0) > 0);
 
-    return { diasTreinou, diasComGasto, gastoMedio, valoresGastas, treinosLista, usaExemploSaude, diasComAgua, aguaMedia, aguaNaMeta, valoresAgua, registrados, naMeta, usaExemplo, rotulos, valores, titulo, larguraBarra, rotuloACada, referencia, macros, top };
+    return { statsSemHoje, registradosTodos, totalBase: baseDias.length, diasTreinou, diasComGasto, gastoMedio, valoresGastas, treinosLista, usaExemploSaude, diasComAgua, aguaMedia, aguaNaMeta, valoresAgua, registrados, naMeta, usaExemplo, rotulos, valores, titulo, larguraBarra, rotuloACada, referencia, macros, top };
   }, [dias, periodo, metas.calorias, metaAgua]);
 
   const hoje = dias?.[dias.length - 1];
@@ -170,7 +196,7 @@ export default function HistoricoScreen({ navigation, route }: any) {
         <ScrollView contentContainerStyle={[styles.conteudo, { paddingBottom: 120 + insets.bottom }]} showsVerticalScrollIndicator={false}>
           {(painel.usaExemplo || (painel.usaExemploSaude && modoSaude() === "simulado")) && (
             <View style={styles.exemplo}>
-              <Feather name="info" size={14} color="#6B4500" />
+              <Feather name="info" size={14} color={colors.avisoTexto} />
               <Text style={styles.exemploTxt}>Os dias anteriores são dados de exemplo, só para demonstrar o painel.</Text>
             </View>
           )}
@@ -186,13 +212,13 @@ export default function HistoricoScreen({ navigation, route }: any) {
             ) : (
               <>
                 <Kpi valor={fmt(media(painel.registrados.map((d) => d.kcal)))} rotulo="kcal por dia (média)" />
-                <Kpi valor={`${painel.registrados.length}/${dias!.length}`} rotulo="dias registrados" />
+                <Kpi valor={`${painel.registrados.length}/${painel.totalBase}`} rotulo="dias registrados" />
                 <Kpi valor={`${painel.naMeta}`} rotulo="dias na meta" />
               </>
             )}
           </View>
 
-          {painel.registrados.length === 0 && (
+          {painel.registradosTodos.length === 0 && (
             <View style={styles.vazio}>
               <Feather name="clipboard" size={22} color={colors.textSecondary} />
               <Text style={styles.vazioTxt}>
@@ -201,7 +227,7 @@ export default function HistoricoScreen({ navigation, route }: any) {
             </View>
           )}
 
-          {painel.registrados.length > 0 && (
+          {painel.registradosTodos.length > 0 && (
             <>
               <Text style={styles.secao}>{painel.titulo}</Text>
               <View style={styles.card}>
@@ -216,7 +242,7 @@ export default function HistoricoScreen({ navigation, route }: any) {
                 />
                 {periodo !== "dia" && (
                   <Text style={styles.nota}>
-                    Meta diária: {metas.calorias.toLocaleString("pt-BR")} kcal · "na meta" = entre 85% e 110% dela
+                    Meta diária: {metas.calorias.toLocaleString("pt-BR")} kcal · "na meta" = entre 85% e 110% dela{painel.statsSemHoje ? " · as médias não incluem hoje, que ainda está em andamento" : ""}
                   </Text>
                 )}
               </View>
@@ -322,6 +348,8 @@ export default function HistoricoScreen({ navigation, route }: any) {
 }
 
 function Kpi({ valor, rotulo }: { valor: string; rotulo: string }) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   return (
     <View style={styles.kpi}>
       <Text style={styles.kpiValor}>{valor}</Text>
@@ -330,20 +358,20 @@ function Kpi({ valor, rotulo }: { valor: string; rotulo: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   topo: { flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 56, paddingHorizontal: 20, paddingBottom: 12 },
   voltar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   titulo: { fontSize: 22, fontWeight: "800", color: colors.textPrimary },
   abas: { flexDirection: "row", marginHorizontal: 20, padding: 4, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   aba: { flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: "center" },
-  abaAtiva: { backgroundColor: colors.primary },
+  abaAtiva: { backgroundColor: colors.botao },
   abaTxt: { fontSize: 12, fontWeight: "600", color: colors.textSecondary },
   abaTxtAtiva: { color: "#fff" },
   carregando: { flex: 1, alignItems: "center", justifyContent: "center" },
   conteudo: { padding: 20, paddingBottom: 60, gap: 12 },
-  exemplo: { flexDirection: "row", gap: 8, alignItems: "center", backgroundColor: "#FFF4DC", borderRadius: 10, padding: 10 },
-  exemploTxt: { flex: 1, fontSize: 12, lineHeight: 17, color: "#6B4500" },
+  exemplo: { flexDirection: "row", gap: 8, alignItems: "center", backgroundColor: colors.avisoFundo, borderRadius: 10, padding: 10 },
+  exemploTxt: { flex: 1, fontSize: 12, lineHeight: 17, color: colors.avisoTexto },
   kpis: { flexDirection: "row", gap: 10 },
   kpi: { flex: 1, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 12 },
   kpiValor: { fontSize: 20, fontWeight: "800", color: colors.textPrimary },

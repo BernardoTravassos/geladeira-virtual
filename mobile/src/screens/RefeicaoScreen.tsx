@@ -1,3 +1,5 @@
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
 import React, { useEffect, useMemo, useState } from "react";
 import { useFeedback } from "../components/Feedback";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,7 +9,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { colors } from "../theme/colors";
+
 import BarraTeclado, { ID_BARRA_TECLADO } from "../components/BarraTeclado";
 import { ALIMENTOS, CATEGORIAS, Alimento, Categoria, alimentoPorId, nutrientes } from "../data/alimentos";
 import { carregarDia, salvarRefeicao, totaisDoRegistro, ItemPrato, EstimativaSalva } from "../utils/refeicoes";
@@ -18,13 +20,15 @@ import { avaliarRefeicao } from "../utils/avaliacao";
 
 const REGRA_GRAMAS = { artigoRotulo: "A quantidade", min: 1, max: 2000, unidade: "g", casas: 0 };
 
-const CORES_AVALIACAO = {
-  dentro: { fundo: "#E6F4EA", texto: "#1E5E34", icone: "check-circle" as const },
-  acima: { fundo: "#FDECEA", texto: "#8E2B20", icone: "alert-triangle" as const },
-  abaixo: { fundo: "#FFF4DC", texto: "#6B4500", icone: "alert-circle" as const },
-};
+const avaliacaoDe = (colors: Cores) => ({
+  dentro: { fundo: colors.sucessoFundo, texto: colors.sucessoTexto, icone: "check-circle" as const },
+  acima: { fundo: colors.erroFundo, texto: colors.erroTexto, icone: "alert-triangle" as const },
+  abaixo: { fundo: colors.avisoFundo, texto: colors.avisoTexto, icone: "alert-circle" as const },
+});
 
 export default function RefeicaoScreen({ navigation, route }: any) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const feedback = useFeedback();
   const insets = useSafeAreaInsets();
   const { chave, nome, icone, fracaoDaMeta } = route.params as {
@@ -80,7 +84,7 @@ export default function RefeicaoScreen({ navigation, route }: any) {
     kcalOutrasRefeicoes: kcalOutras,
     estimativa: usandoEstimativa,
   });
-  const cor = avaliacao ? CORES_AVALIACAO[avaliacao.status] : null;
+  const cor = avaliacao ? avaliacaoDe(colors)[avaliacao.status] : null;
   const gramasDe = (id: string) => itens.find((i) => i.alimentoId === id)?.gramas;
 
   async function tirarFoto() {
@@ -209,7 +213,7 @@ export default function RefeicaoScreen({ navigation, route }: any) {
         ) : (
           <TouchableOpacity style={styles.cta} activeOpacity={0.85} onPress={tirarFoto}>
             <View style={styles.ctaIcone}>
-              <Feather name="camera" size={22} color={colors.background} />
+              <Feather name="camera" size={22} color={colors.textoSobreMarca} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.ctaTitulo}>Fotografar o prato</Text>
@@ -250,7 +254,7 @@ export default function RefeicaoScreen({ navigation, route }: any) {
               </Text>
             )}
             <View style={styles.avisoBox}>
-              <Feather name="alert-circle" size={14} color="#8A5A00" />
+              <Feather name="alert-circle" size={14} color={colors.avisoTexto} />
               <Text style={styles.avisoBoxTxt}>
                 Esta é uma informação aproximada, feita por IA a partir da foto
                 {estimativa.confianca === "baixa" ? " (confiança baixa)" : ""}. Para um valor preciso, selecione os alimentos abaixo e informe as gramas.
@@ -437,16 +441,16 @@ export default function RefeicaoScreen({ navigation, route }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   topo: { flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 56, paddingHorizontal: 20, paddingBottom: 8 },
   voltar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
-  topoIcone: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#EAF3E4", alignItems: "center", justifyContent: "center" },
+  topoIcone: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.verdeSuave, alignItems: "center", justifyContent: "center" },
   titulo: { fontSize: 22, fontWeight: "800", color: colors.textPrimary },
   conteudo: { padding: 20, paddingBottom: 120 },
-  cta: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: colors.primary, borderRadius: 18, padding: 18 },
+  cta: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: colors.botao, borderRadius: 18, padding: 18 },
   ctaIcone: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" },
-  ctaTitulo: { color: colors.background, fontSize: 17, fontWeight: "700" },
+  ctaTitulo: { color: colors.textoSobreMarca, fontSize: 17, fontWeight: "700" },
   ctaSub: { color: "rgba(250,249,244,0.8)", fontSize: 13, marginTop: 2 },
   fotoCard: { borderRadius: 18, overflow: "hidden" },
   fotoImg: { width: "100%", height: 200 },
@@ -459,7 +463,7 @@ const styles = StyleSheet.create({
   buscaInput: { flex: 1, fontSize: 15, color: colors.textPrimary },
   abas: { gap: 8, paddingVertical: 12 },
   aba: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  abaAtiva: { backgroundColor: colors.primary, borderColor: colors.primary },
+  abaAtiva: { backgroundColor: colors.botao, borderColor: colors.primary },
   abaTxt: { fontSize: 13, fontWeight: "600", color: colors.textSecondary },
   abaTxtAtiva: { color: "#fff" },
   grade: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
@@ -476,16 +480,16 @@ const styles = StyleSheet.create({
   linhaKcal: { fontSize: 14, fontWeight: "700", color: colors.primary },
   analise: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 14 },
   analiseTxt: { color: colors.textSecondary, fontSize: 14 },
-  analiseErro: { backgroundColor: "#FDECEA", borderRadius: 12, padding: 12, marginTop: 6, gap: 6 },
-  analiseErroTxt: { color: "#8E2B20", fontSize: 13, lineHeight: 18 },
+  analiseErro: { backgroundColor: colors.erroFundo, borderRadius: 12, padding: 12, marginTop: 6, gap: 6 },
+  analiseErroTxt: { color: colors.erroTexto, fontSize: 13, lineHeight: 18 },
   tentar: { color: colors.primary, fontWeight: "700", fontSize: 13 },
   estimativa: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 16, marginTop: 6, gap: 4 },
   estimativaTitulo: { fontSize: 12, fontWeight: "700", color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.6 },
   estimativaKcal: { fontSize: 26, fontWeight: "800", color: colors.textPrimary },
   estimativaMacros: { fontSize: 13, color: colors.textPrimary },
   estimativaLista: { fontSize: 12, color: colors.textSecondary, lineHeight: 17, marginTop: 2 },
-  avisoBox: { flexDirection: "row", gap: 8, backgroundColor: "#FFF4DC", borderRadius: 10, padding: 10, marginTop: 8 },
-  avisoBoxTxt: { flex: 1, fontSize: 12, lineHeight: 17, color: "#6B4500" },
+  avisoBox: { flexDirection: "row", gap: 8, backgroundColor: colors.avisoFundo, borderRadius: 10, padding: 10, marginTop: 8 },
+  avisoBoxTxt: { flex: 1, fontSize: 12, lineHeight: 17, color: colors.avisoTexto },
   avaliacao: { borderRadius: 14, padding: 14, marginTop: 12, gap: 6 },
   avaliacaoTopo: { flexDirection: "row", alignItems: "center", gap: 8 },
   avaliacaoTitulo: { fontSize: 15, fontWeight: "800", flex: 1 },
@@ -495,7 +499,7 @@ const styles = StyleSheet.create({
   rodape: { position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 28 },
   rodapeKcal: { fontSize: 20, fontWeight: "800", color: colors.textPrimary },
   rodapeMacros: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  salvar: { backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 22, alignItems: "center" },
+  salvar: { backgroundColor: colors.botao, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 22, alignItems: "center" },
   salvarTxt: { color: "#fff", fontWeight: "700", fontSize: 15 },
   fundoModal: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
   folha: { backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 22, paddingBottom: 34, gap: 12 },
@@ -503,13 +507,13 @@ const styles = StyleSheet.create({
   folhaTitulo: { fontSize: 20, fontWeight: "800", color: colors.textPrimary },
   folhaPergunta: { fontSize: 14, color: colors.textSecondary },
   ajuste: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16, marginVertical: 6 },
-  ajusteBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#EAF3E4", alignItems: "center", justifyContent: "center" },
+  ajusteBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.verdeSuave, alignItems: "center", justifyContent: "center" },
   campoGramas: { flexDirection: "row", alignItems: "baseline", justifyContent: "center", gap: 4, minWidth: 120, borderBottomWidth: 2, borderBottomColor: colors.primary, paddingBottom: 4 },
   gramasInput: { fontSize: 36, fontWeight: "800", color: colors.textPrimary, textAlign: "center", minWidth: 80 },
   gramasUn: { fontSize: 18, fontWeight: "600", color: colors.textSecondary },
   sugerida: { textAlign: "center", color: colors.primary, fontWeight: "600", fontSize: 13 },
-  erro: { textAlign: "center", color: "#C0392B", fontSize: 13 },
+  erro: { textAlign: "center", color: colors.erroTexto, fontSize: 13 },
   previa: { textAlign: "center", color: colors.textSecondary, fontSize: 13 },
   remover: { alignItems: "center", paddingVertical: 6 },
-  removerTxt: { color: "#C0392B", fontWeight: "600", fontSize: 14 },
+  removerTxt: { color: colors.erroTexto, fontWeight: "600", fontSize: 14 },
 });

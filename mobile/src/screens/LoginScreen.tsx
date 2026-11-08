@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import { useCores } from "../theme/tema";
+import type { Cores } from "../theme/colors";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,24 +13,29 @@ import {
   Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { colors, degrade } from "../theme/colors";
+import { degrade } from "../theme/colors";
 import { LinearGradient } from "expo-linear-gradient";
 import Logo from "../components/Logo";
 import { login, register, getProfile, descreverFalhaDeRede } from "../services/api";
 import CampoSenha from "../components/CampoSenha";
+import { prepararDadosLocais } from "../utils/dadosLocais";
 import { Feather } from "@expo/vector-icons";
 import { regrasDaSenha, validarEmail, validarSenha } from "../utils/validacao";
 
 function Regra({ ok, texto }: { ok: boolean; texto: string }) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   return (
     <View style={styles.regra}>
-      <Feather name={ok ? "check-circle" : "circle"} size={14} color={ok ? "#1E8E5A" : colors.textSecondary} />
-      <Text style={[styles.regraTxt, ok && { color: "#1E8E5A" }]}>{texto}</Text>
+      <Feather name={ok ? "check-circle" : "circle"} size={14} color={ok ? colors.sucessoTexto : colors.textSecondary} />
+      <Text style={[styles.regraTxt, ok && { color: colors.sucessoTexto }]}>{texto}</Text>
     </View>
   );
 }
 
 export default function LoginScreen({ navigation }: any) {
+  const colors = useCores();
+  const styles = useMemo(() => criarStyles(colors), [colors]);
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [modoCadastro, setModoCadastro] = useState(false);
@@ -55,6 +62,7 @@ export default function LoginScreen({ navigation }: any) {
         : await login(emailLimpo, senha);
 
       await AsyncStorage.setItem("@geladeira:token", token);
+      await prepararDadosLocais(emailLimpo, modoCadastro);
 
       // Conta nova → perguntas. Conta existente com perfil → tela principal.
       const perfil = modoCadastro ? null : await getProfile();
@@ -128,7 +136,7 @@ export default function LoginScreen({ navigation }: any) {
 
         <TouchableOpacity style={styles.button} onPress={handleEntrar} disabled={carregando}>
           {carregando ? (
-            <ActivityIndicator color={colors.background} />
+            <ActivityIndicator color={colors.textoSobreMarca} />
           ) : (
             <Text style={styles.buttonText}>
               {modoCadastro ? "Criar conta" : "Entrar"}
@@ -159,7 +167,7 @@ export default function LoginScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const criarStyles = (colors: Cores) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   hero: {
     flex: 0.58,
@@ -173,7 +181,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 30,
     fontWeight: "800",
-    color: colors.background,
+    color: colors.textoSobreMarca,
     marginBottom: 8,
   },
   subtitle: { fontSize: 13, color: "#D9EDE0" },
@@ -197,20 +205,20 @@ const styles = StyleSheet.create({
   },
   button: {
     height: 48,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.botao,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 4,
   },
-  buttonText: { color: colors.background, fontWeight: "600", fontSize: 15 },
+  buttonText: { color: colors.textoSobreMarca, fontWeight: "600", fontSize: 15 },
   link: {
     textAlign: "center",
     color: colors.primary,
     fontSize: 13,
     marginTop: 10,
   },
-  erro: { color: "#C0392B", fontSize: 12, lineHeight: 16, marginTop: -6 },
+  erro: { color: colors.erroTexto, fontSize: 12, lineHeight: 16, marginTop: -6 },
   regras: { gap: 4, marginTop: -4 },
   regra: { flexDirection: "row", alignItems: "center", gap: 6 },
   regraTxt: { fontSize: 12, color: colors.textSecondary },
