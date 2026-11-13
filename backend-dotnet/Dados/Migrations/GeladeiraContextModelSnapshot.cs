@@ -22,6 +22,126 @@ namespace GeladeiraVirtual.Api.Dados.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.Alimento", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Carbo")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("numeric(7,2)")
+                        .HasColumnName("carbo");
+
+                    b.Property<string>("Categoria")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("categoria");
+
+                    b.Property<string>("CodigoBarras")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("codigo_barras");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("criado_em")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Emoji")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("emoji");
+
+                    b.Property<string>("Fonte")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("catalogo")
+                        .HasColumnName("fonte");
+
+                    b.Property<decimal>("Gordura")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("numeric(7,2)")
+                        .HasColumnName("gordura");
+
+                    b.Property<decimal>("Kcal")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("numeric(7,2)")
+                        .HasColumnName("kcal");
+
+                    b.Property<string>("Medida")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("medida");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("nome");
+
+                    b.Property<string>("NomeBusca")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("nome_busca");
+
+                    b.Property<int>("PorcaoPadrao")
+                        .HasColumnType("integer")
+                        .HasColumnName("porcao_padrao");
+
+                    b.Property<decimal>("Proteina")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("numeric(7,2)")
+                        .HasColumnName("proteina");
+
+                    b.Property<Guid?>("UsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("usuario_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodigoBarras")
+                        .HasDatabaseName("ix_alimentos_codigo_barras");
+
+                    b.HasIndex("NomeBusca")
+                        .HasDatabaseName("ix_alimentos_nome_busca");
+
+                    b.HasIndex("UsuarioId")
+                        .HasDatabaseName("ix_alimentos_usuario_id");
+
+                    b.ToTable("alimentos", (string)null);
+                });
+
+            modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.AlimentoMicro", b =>
+                {
+                    b.Property<string>("AlimentoId")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("alimento_id");
+
+                    b.Property<string>("Chave")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("chave");
+
+                    b.Property<decimal>("Valor")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("numeric(10,3)")
+                        .HasColumnName("valor");
+
+                    b.HasKey("AlimentoId", "Chave");
+
+                    b.HasIndex("Chave");
+
+                    b.ToTable("alimento_micros", (string)null);
+                });
+
             modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.Assinatura", b =>
                 {
                     b.Property<Guid>("Id")
@@ -132,6 +252,70 @@ namespace GeladeiraVirtual.Api.Dados.Migrations
                     b.HasIndex("UsuarioId");
 
                     b.ToTable("consultas", (string)null);
+                });
+
+            modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.Micronutriente", b =>
+                {
+                    b.Property<string>("Chave")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("chave");
+
+                    b.Property<string>("Rotulo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("rotulo");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("tipo");
+
+                    b.Property<string>("Unidade")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("unidade");
+
+                    b.Property<decimal>("ValorDiario")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("valor_diario");
+
+                    b.HasKey("Chave");
+
+                    b.ToTable("micronutrientes", (string)null);
+                });
+
+            modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.Nutricionista", b =>
+                {
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("usuario_id");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("criado_em")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Crn")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("crn");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("nome");
+
+                    b.HasKey("UsuarioId");
+
+                    b.ToTable("nutricionistas", (string)null);
                 });
 
             modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.Perfil", b =>
@@ -278,6 +462,14 @@ namespace GeladeiraVirtual.Api.Dados.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("email");
 
+                    b.Property<string>("Papel")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("paciente")
+                        .HasColumnName("papel");
+
                     b.Property<string>("SenhaHash")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -297,6 +489,87 @@ namespace GeladeiraVirtual.Api.Dados.Migrations
                         .IsUnique();
 
                     b.ToTable("usuarios", (string)null);
+                });
+
+            modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.Vinculo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTime?>("AceitoEm")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("aceito_em");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("codigo");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("criado_em")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("NutricionistaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("nutricionista_id");
+
+                    b.Property<Guid?>("PacienteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("paciente_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique()
+                        .HasDatabaseName("vinculos_codigo_key");
+
+                    b.HasIndex("NutricionistaId")
+                        .HasDatabaseName("ix_vinculos_nutricionista_id");
+
+                    b.HasIndex("PacienteId")
+                        .HasDatabaseName("ix_vinculos_paciente_id");
+
+                    b.ToTable("vinculos", (string)null);
+                });
+
+            modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.Alimento", b =>
+                {
+                    b.HasOne("GeladeiraVirtual.Api.Dados.Entidades.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("alimentos_usuario_id_fkey");
+                });
+
+            modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.AlimentoMicro", b =>
+                {
+                    b.HasOne("GeladeiraVirtual.Api.Dados.Entidades.Alimento", "Alimento")
+                        .WithMany("Micros")
+                        .HasForeignKey("AlimentoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("GeladeiraVirtual.Api.Dados.Entidades.Micronutriente", "Micronutriente")
+                        .WithMany()
+                        .HasForeignKey("Chave")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Alimento");
+
+                    b.Navigation("Micronutriente");
                 });
 
             modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.Assinatura", b =>
@@ -335,6 +608,17 @@ namespace GeladeiraVirtual.Api.Dados.Migrations
                     b.Navigation("Usuario");
                 });
 
+            modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.Nutricionista", b =>
+                {
+                    b.HasOne("GeladeiraVirtual.Api.Dados.Entidades.Usuario", "Usuario")
+                        .WithOne()
+                        .HasForeignKey("GeladeiraVirtual.Api.Dados.Entidades.Nutricionista", "UsuarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Usuario");
+                });
+
             modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.Perfil", b =>
                 {
                     b.HasOne("GeladeiraVirtual.Api.Dados.Entidades.Usuario", "Usuario")
@@ -357,6 +641,29 @@ namespace GeladeiraVirtual.Api.Dados.Migrations
                         .HasConstraintName("registros_dia_usuario_id_fkey");
 
                     b.Navigation("Usuario");
+                });
+
+            modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.Vinculo", b =>
+                {
+                    b.HasOne("GeladeiraVirtual.Api.Dados.Entidades.Usuario", "Nutricionista")
+                        .WithMany()
+                        .HasForeignKey("NutricionistaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("GeladeiraVirtual.Api.Dados.Entidades.Usuario", "Paciente")
+                        .WithMany()
+                        .HasForeignKey("PacienteId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Nutricionista");
+
+                    b.Navigation("Paciente");
+                });
+
+            modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.Alimento", b =>
+                {
+                    b.Navigation("Micros");
                 });
 
             modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.Usuario", b =>

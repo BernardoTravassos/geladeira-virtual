@@ -24,6 +24,16 @@ public partial class GeladeiraContext : DbContext
 
     public virtual DbSet<RegistroDia> RegistrosDia { get; set; }
 
+    public virtual DbSet<Alimento> Alimentos { get; set; }
+
+    public virtual DbSet<AlimentoMicro> AlimentoMicros { get; set; }
+
+    public virtual DbSet<Micronutriente> Micronutrientes { get; set; }
+
+    public virtual DbSet<Nutricionista> Nutricionistas { get; set; }
+
+    public virtual DbSet<Vinculo> Vinculos { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Assinatura>(entity =>
@@ -147,6 +157,10 @@ public partial class GeladeiraContext : DbContext
             entity.Property(e => e.TokenVersao)
                 .HasDefaultValue(1)
                 .HasColumnName("token_versao");
+            entity.Property(e => e.Papel)
+                .HasMaxLength(20)
+                .HasDefaultValue("paciente")
+                .HasColumnName("papel");
         });
 
         modelBuilder.Entity<CodigoRecuperacao>(entity =>
@@ -212,6 +226,82 @@ public partial class GeladeiraContext : DbContext
                 .HasForeignKey(d => d.UsuarioId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("registros_dia_usuario_id_fkey");
+        });
+
+        modelBuilder.Entity<Micronutriente>(e =>
+        {
+            e.ToTable("micronutrientes");
+            e.HasKey(x => x.Chave);
+            e.Property(x => x.Chave).HasColumnName("chave").HasMaxLength(20);
+            e.Property(x => x.Rotulo).HasColumnName("rotulo").HasMaxLength(50);
+            e.Property(x => x.Unidade).HasColumnName("unidade").HasMaxLength(10);
+            e.Property(x => x.ValorDiario).HasColumnName("valor_diario").HasPrecision(10, 2);
+            e.Property(x => x.Tipo).HasColumnName("tipo").HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<Alimento>(e =>
+        {
+            e.ToTable("alimentos");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id").HasMaxLength(80);
+            e.Property(x => x.Nome).HasColumnName("nome").HasMaxLength(120);
+            e.Property(x => x.NomeBusca).HasColumnName("nome_busca").HasMaxLength(120);
+            e.Property(x => x.Categoria).HasColumnName("categoria").HasMaxLength(20);
+            e.Property(x => x.PorcaoPadrao).HasColumnName("porcao_padrao");
+            e.Property(x => x.Kcal).HasColumnName("kcal").HasPrecision(7, 2);
+            e.Property(x => x.Proteina).HasColumnName("proteina").HasPrecision(7, 2);
+            e.Property(x => x.Carbo).HasColumnName("carbo").HasPrecision(7, 2);
+            e.Property(x => x.Gordura).HasColumnName("gordura").HasPrecision(7, 2);
+            e.Property(x => x.Medida).HasColumnName("medida").HasMaxLength(120);
+            e.Property(x => x.Emoji).HasColumnName("emoji").HasMaxLength(16);
+            e.Property(x => x.Fonte).HasColumnName("fonte").HasMaxLength(10).HasDefaultValue("catalogo");
+            e.Property(x => x.CodigoBarras).HasColumnName("codigo_barras").HasMaxLength(20);
+            e.Property(x => x.UsuarioId).HasColumnName("usuario_id");
+            e.Property(x => x.CriadoEm).HasColumnName("criado_em").HasColumnType("timestamp without time zone").HasDefaultValueSql("now()");
+            e.HasIndex(x => x.CodigoBarras).HasDatabaseName("ix_alimentos_codigo_barras");
+            e.HasIndex(x => x.NomeBusca).HasDatabaseName("ix_alimentos_nome_busca");
+            e.HasIndex(x => x.UsuarioId).HasDatabaseName("ix_alimentos_usuario_id");
+            e.HasOne<Usuario>().WithMany().HasForeignKey(x => x.UsuarioId).OnDelete(DeleteBehavior.Cascade).HasConstraintName("alimentos_usuario_id_fkey");
+        });
+
+        modelBuilder.Entity<AlimentoMicro>(e =>
+        {
+            e.ToTable("alimento_micros");
+            e.HasKey(x => new { x.AlimentoId, x.Chave });
+            e.Property(x => x.AlimentoId).HasColumnName("alimento_id").HasMaxLength(80);
+            e.Property(x => x.Chave).HasColumnName("chave").HasMaxLength(20);
+            e.Property(x => x.Valor).HasColumnName("valor").HasPrecision(10, 3);
+            e.HasOne(x => x.Alimento).WithMany(a => a.Micros).HasForeignKey(x => x.AlimentoId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Micronutriente).WithMany().HasForeignKey(x => x.Chave).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Nutricionista>(e =>
+        {
+            e.ToTable("nutricionistas");
+            e.HasKey(x => x.UsuarioId);
+            e.Property(x => x.UsuarioId).HasColumnName("usuario_id");
+            e.Property(x => x.Nome).HasColumnName("nome").HasMaxLength(255);
+            e.Property(x => x.Crn).HasColumnName("crn").HasMaxLength(30);
+            e.Property(x => x.CriadoEm).HasColumnName("criado_em").HasColumnType("timestamp without time zone").HasDefaultValueSql("now()");
+            e.HasOne(x => x.Usuario).WithOne().HasForeignKey<Nutricionista>(x => x.UsuarioId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Vinculo>(e =>
+        {
+            e.ToTable("vinculos");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+            e.Property(x => x.NutricionistaId).HasColumnName("nutricionista_id");
+            e.Property(x => x.PacienteId).HasColumnName("paciente_id");
+            e.Property(x => x.Codigo).HasColumnName("codigo").HasMaxLength(12);
+            e.Property(x => x.Status).HasColumnName("status").HasMaxLength(12);
+            e.Property(x => x.CriadoEm).HasColumnName("criado_em").HasColumnType("timestamp without time zone").HasDefaultValueSql("now()");
+            e.Property(x => x.AceitoEm).HasColumnName("aceito_em").HasColumnType("timestamp without time zone");
+            e.HasIndex(x => x.Codigo).IsUnique().HasDatabaseName("vinculos_codigo_key");
+            e.HasIndex(x => x.NutricionistaId).HasDatabaseName("ix_vinculos_nutricionista_id");
+            e.HasIndex(x => x.PacienteId).HasDatabaseName("ix_vinculos_paciente_id");
+            e.HasOne(x => x.Nutricionista).WithMany().HasForeignKey(x => x.NutricionistaId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Paciente).WithMany().HasForeignKey(x => x.PacienteId).OnDelete(DeleteBehavior.Cascade);
         });
 
         OnModelCreatingPartial(modelBuilder);

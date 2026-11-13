@@ -17,6 +17,7 @@ builder.Services.AddDbContext<GeladeiraContext>(opcoes =>
 
 builder.Services.AddScoped<IServicoEmail, ServicoEmailSmtp>();
 builder.Services.AddScoped<ServicoJwt>();
+builder.Services.AddHttpClient<GeladeiraVirtual.Api.Alimentos.ServicoOpenFoodFacts>(c => c.Timeout = TimeSpan.FromSeconds(8));
 builder.Services.AddSingleton<GeladeiraVirtual.Api.IA.IServicoAnaliseRefeicao, GeladeiraVirtual.Api.IA.ServicoAnaliseRefeicao>();
 builder.Services.AdicionarAutenticacaoJwt(new ServicoJwt(configuracao));
 builder.Services.AddAuthorization();
@@ -151,13 +152,17 @@ if (args.Contains("--migrar"))
     if (pendentes.Count == 0)
     {
         Console.WriteLine("Banco já está atualizado — nenhuma migration pendente.");
-        return;
+    }
+    else
+    {
+        Console.WriteLine($"Aplicando {pendentes.Count} migration(s):");
+        foreach (var m in pendentes) Console.WriteLine($"  · {m}");
+        await banco.Database.MigrateAsync();
     }
 
-    Console.WriteLine($"Aplicando {pendentes.Count} migration(s):");
-    foreach (var m in pendentes) Console.WriteLine($"  · {m}");
-
-    await banco.Database.MigrateAsync();
+    // Catálogo de alimentos e vitaminas: pode repetir sem problema.
+    var (qtdAlimentos, qtdMicros) = await GeladeiraVirtual.Api.Dados.SementeAlimentos.Executar(banco);
+    Console.WriteLine($"Catálogo de alimentos: {qtdAlimentos} alimentos, {qtdMicros} valores de vitaminas/minerais.");
     Console.WriteLine("Concluído.");
     return;
 }

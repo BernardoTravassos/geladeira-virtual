@@ -23,6 +23,30 @@ public sealed class CadastroRequest
     public string Senha { get; set; } = "";
 }
 
+/// <summary>Cadastro de nutricionista: mesmas regras de senha, mais nome e CRN.</summary>
+public sealed class CadastroNutricionistaRequest
+{
+    [Required(ErrorMessage = "E-mail é obrigatório")]
+    [EmailAddress(ErrorMessage = "E-mail inválido")]
+    [MaxLength(255, ErrorMessage = "E-mail longo demais")]
+    public string Email { get; set; } = "";
+
+    [Required(ErrorMessage = "Senha é obrigatória")]
+    [MinLength(8, ErrorMessage = "A senha precisa de pelo menos 8 caracteres")]
+    [MaxLength(72, ErrorMessage = "Senha longa demais")]
+    [RegularExpression(@"^[\s\S]*[A-ZÀ-ÖØ-Þ][\s\S]*$", ErrorMessage = "A senha precisa ter pelo menos uma letra maiúscula")]
+    public string Senha { get; set; } = "";
+
+    [Required(ErrorMessage = "Nome é obrigatório")]
+    [MinLength(3, ErrorMessage = "Nome curto demais")]
+    [MaxLength(255, ErrorMessage = "Nome longo demais")]
+    public string Nome { get; set; } = "";
+
+    [Required(ErrorMessage = "CRN é obrigatório")]
+    [RegularExpression(@"^[A-Za-z0-9 \-/.]{4,30}$", ErrorMessage = "CRN inválido")]
+    public string Crn { get; set; } = "";
+}
+
 /// <summary>
 /// Login NÃO tem tamanho mínimo de senha, de propósito: os usuários que já
 /// existem se cadastraram quando o mínimo era 6. Exigir 8 aqui trancaria

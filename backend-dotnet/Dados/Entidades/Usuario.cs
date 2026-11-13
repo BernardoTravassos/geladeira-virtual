@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace GeladeiraVirtual.Api.Dados.Entidades;
@@ -23,6 +23,9 @@ public partial class Usuario
     /// depois de a pessoa trocar a senha.
     /// </summary>
     public int TokenVersao { get; set; } = 1;
+
+    /// <summary>"paciente" (padrão) ou "nutricionista".</summary>
+    public string Papel { get; set; } = "paciente";
 
     public virtual Assinatura? Assinatura { get; set; }
 

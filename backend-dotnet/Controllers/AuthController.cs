@@ -56,7 +56,46 @@ public sealed class AuthController(
         }
 
         return StatusCode(StatusCodes.Status201Created,
-            new { token = jwt.Gerar(usuario.Id, usuario.TokenVersao) });
+            new { token = jwt.Gerar(usuario.Id, usuario.TokenVersao), papel = usuario.Papel });
+    }
+
+    /// <summary>
+    /// Cadastro de nutricionista. O CRN é guardado como informado: a conferência
+    /// no conselho profissional ainda é manual (nesta fase, ninguém é verificado).
+    /// </summary>
+    [HttpPost("register-nutritionist")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
+    public async Task<IActionResult> CadastrarNutricionista([FromBody] CadastroNutricionistaRequest requisicao)
+    {
+        var usuario = new Usuario
+        {
+            Email = Normalizar(requisicao.Email),
+            SenhaHash = ServicoSenha.Gerar(requisicao.Senha),
+            CriadoEm = Relogio.Agora,
+            TokenVersao = 1,
+            Papel = "nutricionista",
+            Assinatura = new Assinatura { Plano = "gratuito", AtualizadoEm = Relogio.Agora },
+        };
+        banco.Usuarios.Add(usuario);
+        banco.Nutricionistas.Add(new Nutricionista
+        {
+            Usuario = usuario,
+            Nome = requisicao.Nome.Trim(),
+            Crn = requisicao.Crn.Trim().ToUpperInvariant(),
+            CriadoEm = Relogio.Agora,
+        });
+
+        try
+        {
+            await banco.SaveChangesAsync();
+        }
+        catch (DbUpdateException erro) when (EhEmailDuplicado(erro))
+        {
+            return Conflict(new { error = "E-mail já cadastrado" });
+        }
+
+        return StatusCode(StatusCodes.Status201Created,
+            new { token = jwt.Gerar(usuario.Id, usuario.TokenVersao), papel = usuario.Papel });
     }
 
     // ────────────────────────────── login ───────────────────────────────
@@ -83,7 +122,7 @@ public sealed class AuthController(
             return Unauthorized(new { error = "E-mail ou senha incorretos" });
         }
 
-        return Ok(new { token = jwt.Gerar(usuario.Id, usuario.TokenVersao) });
+        return Ok(new { token = jwt.Gerar(usuario.Id, usuario.TokenVersao), papel = usuario.Papel });
     }
 
     // ───────────────────────── esqueci a senha ──────────────────────────

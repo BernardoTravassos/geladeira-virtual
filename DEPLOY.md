@@ -23,6 +23,8 @@ O app fala com a API; a API fala com o banco. Nada disso depende do seu PC.
    ```bash
    cd backend-dotnet
    DATABASE_URL='<string do Neon>' JWT_SECRET='<qualquer 32+ caracteres>' dotnet run -- --migrar
+   # além de criar as tabelas, carrega o catálogo de alimentos e vitaminas
+   # (backend-dotnet/Dados/Sementes/alimentos.json). Pode repetir sem problema.
    ```
 4. Teste: `https://SEU-APP.onrender.com/health`.
    No plano grátis a API **dorme após ~15 min parada**; o primeiro acesso demora ~1 min.
