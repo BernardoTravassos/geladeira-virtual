@@ -21,7 +21,8 @@ import { calcularMetas, calcularMetaAguaMl, saudacao, PerfilApi } from "../utils
 import PaywallCard from "../components/PaywallCard";
 import CardAgua from "../components/CardAgua";
 import { DEV } from "../config/dev";
-import { PERIODOS } from "../utils/historico";
+import CardOrientacaoNutri from "../components/CardOrientacaoNutri";
+import ChatNutri from "../components/ChatNutri";
 import { useChaveDoDia } from "../utils/dia";
 import { RECEITAS } from "../mocks/receitas";
 import { carregarDia, totaisDoRegistro, RegistroDoDia } from "../utils/refeicoes";
@@ -265,28 +266,8 @@ export default function HomeScreen({ navigation, route }: any) {
         <CardAgua metaMl={calcularMetaAguaMl(perfil)} />
 
 
-        {/* Histórico */}
-        <Text style={styles.sectionTitle}>Histórico</Text>
-        <View style={styles.card}>
-          <Text style={styles.mealRowInfo}>Veja o que você consumiu, com gráficos</Text>
-          <View style={styles.periodos}>
-            {PERIODOS.map((p) => (
-              <TouchableOpacity
-                key={p.chave}
-                style={styles.periodo}
-                activeOpacity={0.7}
-                onPress={() => navigation.navigate("Historico", { periodo: p.chave })}
-                accessibilityRole="button"
-                accessibilityLabel={`Histórico de ${p.nome}`}
-              >
-                <View style={styles.mealIcon}>
-                  <Feather name={p.icone} size={16} color={colors.primary} />
-                </View>
-                <Text style={styles.periodoTxt}>{p.nome}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+        {/* Orientação do nutricionista (mock) */}
+        <CardOrientacaoNutri />
 
         {/* Consultas recentes */}
         <View style={styles.sectionHeaderRow}>
@@ -319,6 +300,8 @@ export default function HomeScreen({ navigation, route }: any) {
           ))}
         </View>
       </ScrollView>
+
+      <ChatNutri contexto={{ calorias: metas.calorias, proteina: metas.proteina, aguaMl: calcularMetaAguaMl(perfil) }} />
 
       <BarraInferior ativa="Home" onCamera={handleGerarCardapio} />
 
@@ -448,9 +431,6 @@ const criarStyles = (colors: Cores) => StyleSheet.create({
     alignItems: "center",
     marginTop: 4,
   },
-  periodos: { flexDirection: "row", gap: 8, marginTop: 12 },
-  periodo: { flex: 1, alignItems: "center", gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
-  periodoTxt: { fontSize: 12, fontWeight: "600", color: colors.textPrimary },
   sectionLink: { fontSize: 11, color: colors.primary, fontWeight: "600" },
   mealRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
   mealRowDivider: { borderBottomWidth: 1, borderBottomColor: colors.border },
