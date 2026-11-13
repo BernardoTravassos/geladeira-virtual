@@ -22,6 +22,7 @@ import ReceitasScreen from "./src/screens/ReceitasScreen";
 import TransicaoLogo, { TransicaoLogoRef } from "./src/components/TransicaoLogo";
 import { FeedbackProvider } from "./src/components/Feedback";
 import { sincronizar } from "./src/utils/sincronizacao";
+import { sincronizarCatalogo } from "./src/utils/catalogoServidor";
 
 export type RootStackParamList = {
   Login: undefined;
@@ -65,7 +66,10 @@ function Principal() {
       } else {
         setInitialRoute("Home");
       }
-      if (token) sincronizar(); // segundo plano: reenvia pendências e atualiza o diário
+      if (token) {
+        sincronizar(); // segundo plano: reenvia pendências e atualiza o diário
+        sincronizarCatalogo(); // alimentos (e seus nutrientes) do banco
+      }
     }
     checkStoredSession();
   }, []);

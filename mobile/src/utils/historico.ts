@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { semente } from "./aleatorio";
 import { DEV } from "../config/dev";
-import { alimentoPorId } from "../data/alimentos";
+import { alimentoDoItem } from "../data/alimentos";
 import { lerSaudeDeDatas, Treino } from "./saude";
 import { RegistroDoDia, RegistroRefeicao, totaisDoRegistro } from "./refeicoes";
 
@@ -67,7 +67,7 @@ function resumir(data: Date, dia: RegistroDoDia, exemplo: boolean, aguaMl: numbe
 
     if (reg.itens.length > 0) {
       for (const it of reg.itens) {
-        const nome = alimentoPorId(it.alimentoId)?.nome;
+        const nome = alimentoDoItem(it)?.nome;
         if (nome) alimentos.set(nome, (alimentos.get(nome) ?? 0) + it.gramas);
       }
     } else if (reg.estimativa) {

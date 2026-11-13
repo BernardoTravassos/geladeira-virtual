@@ -1,9 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { alimentoPorId, nutrientes } from "../data/alimentos";
+import { Alimento, alimentoDoItem, nutrientes } from "../data/alimentos";
 import { gravarDia } from "./sincronizacao";
 
 // Um item marcado no prato: o alimento e quantas gramas a pessoa comeu.
-export type ItemPrato = { alimentoId: string; gramas: number };
+export type ItemPrato = {
+  alimentoId: string;
+  gramas: number;
+  /** Cópia do alimento, só quando foi criado pela pessoa (não está no catálogo). */
+  personalizado?: Alimento;
+};
 
 // Estimativa da IA a partir da foto (aproximada — não é medição).
 export type EstimativaSalva = {
@@ -50,7 +55,7 @@ export async function salvarRefeicao(chave: string, registro: RegistroRefeicao |
 export function totais(itens: ItemPrato[]) {
   return itens.reduce(
     (t, it) => {
-      const al = alimentoPorId(it.alimentoId);
+      const al = alimentoDoItem(it);
       if (!al) return t;
       const n = nutrientes(al, it.gramas);
       return {

@@ -5,15 +5,18 @@ import { useFeedback } from "../components/Feedback";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Image, ActivityIndicator,
-  Alert, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback,
+  Alert, Dimensions, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 
 import BarraTeclado, { ID_BARRA_TECLADO } from "../components/BarraTeclado";
-import { ALIMENTOS, CATEGORIAS, Alimento, Categoria, alimentoPorId, nutrientes } from "../data/alimentos";
+import { ALIMENTOS, CATEGORIAS, Alimento, Categoria, alimentoDoItem, nutrientes, normalizar, palavrasDaBusca } from "../data/alimentos";
+import { buscarNoServidor } from "../utils/catalogoServidor";
+import { filtrarAlimentos } from "../utils/buscaAlimentos";
+import { adicionarPersonalizado, carregarPersonalizados, ocultarPersonalizado } from "../utils/alimentosPersonalizados";
 import { carregarDia, salvarRefeicao, totaisDoRegistro, ItemPrato, EstimativaSalva } from "../utils/refeicoes";
-import { interpretarNumero } from "../utils/numeros";
+import { interpretarNumero, lerNumero } from "../utils/numeros";
 import { analisarPrato, descreverFalhaDeRede, getProfile } from "../services/api";
 import { calcularMetas, PerfilApi } from "../utils/nutricao";
 import { avaliarRefeicao } from "../utils/avaliacao";
@@ -31,6 +34,23 @@ export default function RefeicaoScreen({ navigation, route }: any) {
   const styles = useMemo(() => criarStyles(colors), [colors]);
   const feedback = useFeedback();
   const insets = useSafeAreaInsets();
+  // No iPhone o teclado cobre o rodapé fixo (botão "Salvar refeição") e nada o
+  // empurra para cima — a pessoa ficava presa. Medimos o teclado e subimos o
+  // rodapé junto. No Android o sistema já redimensiona a tela.
+  const [alturaTeclado, setAlturaTeclado] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const mostrar = Keyboard.addListener("keyboardWillChangeFrame", (e) => {
+      const topo = e.endCoordinates.screenY;
+      setAlturaTeclado(Math.max(0, Dimensions.get("window").height - topo));
+    });
+    const esconder = Keyboard.addListener("keyboardWillHide", () => setAlturaTeclado(0));
+    return () => {
+      mostrar.remove();
+      esconder.remove();
+    };
+  }, []);
+  const tecladoAberto = alturaTeclado > 0;
   const { chave, nome, icone, fracaoDaMeta } = route.params as {
     chave: string; nome: string; icone: keyof typeof Feather.glyphMap; fracaoDaMeta: number;
   };
@@ -42,14 +62,32 @@ export default function RefeicaoScreen({ navigation, route }: any) {
   const [kcalOutras, setKcalOutras] = useState(0);
   const [analisando, setAnalisando] = useState(false);
   const [erroAnalise, setErroAnalise] = useState("");
-  const [categoria, setCategoria] = useState<Categoria>("carboidratos");
+  const [categoria, setCategoria] = useState<Categoria | "meus">("carboidratos");
+  // Alimentos que a pessoa criou (não estão no catálogo).
+  const [meus, setMeus] = useState<Alimento[]>([]);
+  const [criando, setCriando] = useState(false);
+  const [novoNome, setNovoNome] = useState("");
+  const [novaCategoria, setNovaCategoria] = useState<Categoria>("pratos");
+  const [novoModo, setNovoModo] = useState<"100g" | "porcao">("100g");
+  const [novoPeso, setNovoPeso] = useState("");
+  const [novoKcal, setNovoKcal] = useState("");
+  const [novoProt, setNovoProt] = useState("");
+  const [novoCarbo, setNovoCarbo] = useState("");
+  const [novoGord, setNovoGord] = useState("");
+  const [erroNovo, setErroNovo] = useState("");
   const [busca, setBusca] = useState("");
+  // Resultado da busca no servidor: ids na ordem de relevância. `versao` força a lista a
+  // reler o catálogo depois que os alimentos novos foram aplicados.
+  const [ordemServidor, setOrdemServidor] = useState<string[] | null>(null);
+  const [buscando, setBuscando] = useState(false);
+  const [versao, setVersao] = useState(0);
   const [editando, setEditando] = useState<Alimento | null>(null);
   const [gramasTexto, setGramasTexto] = useState("");
   const [erroGramas, setErroGramas] = useState("");
 
   useEffect(() => {
     getProfile().then(setPerfil).catch(() => {}); // sem perfil, usa metas padrão
+    carregarPersonalizados().then(setMeus);
   }, []);
 
   useEffect(() => {
@@ -67,11 +105,42 @@ export default function RefeicaoScreen({ navigation, route }: any) {
     });
   }, [chave]);
 
-  const lista = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    if (termo) return ALIMENTOS.filter((x) => x.nome.toLowerCase().includes(termo));
-    return ALIMENTOS.filter((x) => x.categoria === categoria);
-  }, [busca, categoria]);
+  // Busca no servidor com atraso (espera a pessoa parar de digitar). O servidor tem milhares
+  // de alimentos e produtos de mercado; o catálogo do app é só o ponto de partida.
+  useEffect(() => {
+    const termo = busca.trim();
+    if (termo.length < 2) {
+      setOrdemServidor(null);
+      setBuscando(false);
+      return;
+    }
+    setBuscando(true);
+    let cancelado = false;
+    const t = setTimeout(async () => {
+      const ids = await buscarNoServidor(termo);
+      if (cancelado) return;
+      setOrdemServidor(ids);
+      setVersao((v) => v + 1);
+      setBuscando(false);
+    }, 400);
+    return () => {
+      cancelado = true;
+      clearTimeout(t);
+    };
+  }, [busca]);
+
+  const meusVisiveis = useMemo(() => meus.filter((x) => !x.oculto), [meus]);
+  const { lista, truncada } = useMemo(() => {
+    const todos = [...ALIMENTOS, ...meusVisiveis];
+    let achados: Alimento[];
+    if (palavrasDaBusca(busca).length > 0) {
+      achados = filtrarAlimentos(todos, busca, ordemServidor);
+    } else if (categoria === "meus") achados = meusVisiveis;
+    else achados = todos.filter((x) => x.categoria === categoria);
+    // Limite para não pesar a tela numa busca muito aberta (ex.: "a").
+    return { lista: achados.slice(0, 60), truncada: achados.length > 60 };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busca, categoria, meusVisiveis, ordemServidor, versao]);
 
   const total = totaisDoRegistro({ itens, estimativa });
   const usandoEstimativa = itens.length === 0 && !!estimativa;
@@ -156,6 +225,86 @@ export default function RefeicaoScreen({ navigation, route }: any) {
     setErroGramas("");
   }
 
+  function abrirCriar(nomeInicial = "") {
+    setNovoNome(nomeInicial.trim());
+    setNovaCategoria("pratos");
+    setNovoModo("100g");
+    setNovoPeso("");
+    setNovoKcal("");
+    setNovoProt("");
+    setNovoCarbo("");
+    setNovoGord("");
+    setErroNovo("");
+    setCriando(true);
+  }
+
+  async function salvarNovoAlimento() {
+    const nome = novoNome.trim();
+    if (nome.length < 2) return setErroNovo("Dê um nome ao alimento.");
+    if (meus.some((x) => !x.oculto && normalizar(x.nome) === normalizar(nome))) {
+      return setErroNovo("Você já criou um alimento com esse nome.");
+    }
+
+    // Campo vazio vale 0; número inválido é erro (não adivinhamos o que a pessoa quis).
+    const ler = (t: string) => (t.trim() === "" ? 0 : lerNumero(t));
+    const kcalDig = ler(novoKcal), p = ler(novoProt), c = ler(novoCarbo), g = ler(novoGord);
+    if (kcalDig === null || p === null || c === null || g === null) {
+      return setErroNovo("Use só números nos valores. Pode usar vírgula, como em 12,5.");
+    }
+    if (kcalDig === 0 && p === 0 && c === 0 && g === 0) {
+      return setErroNovo("Informe ao menos as calorias ou algum nutriente.");
+    }
+
+    // Tudo é guardado por 100 g, como no catálogo. No modo "por porção", convertemos.
+    let fator = 1;
+    let porcao = 100;
+    if (novoModo === "porcao") {
+      const peso = lerNumero(novoPeso);
+      if (peso === null || peso < 1 || peso > 2000) return setErroNovo("Informe o peso da porção em gramas (1 a 2000).");
+      fator = 100 / peso;
+      porcao = Math.round(peso);
+    }
+    const proteina = +(p * fator).toFixed(1);
+    const carbo = +(c * fator).toFixed(1);
+    const gordura = +(g * fator).toFixed(1);
+    // Sem calorias informadas, calcula pelos macros (4 kcal/g de proteína e carboidrato, 9 de gordura).
+    const kcal = Math.round(kcalDig > 0 ? kcalDig * fator : 4 * proteina + 4 * carbo + 9 * gordura);
+
+    if (proteina > 100 || carbo > 100 || gordura > 100 || proteina + carbo + gordura > 100.5 || kcal > 900) {
+      return setErroNovo(
+        novoModo === "100g"
+          ? "Esses valores passam do possível para 100 g de alimento. Confira se não são de uma porção inteira."
+          : "Esses valores passam do possível para o peso informado. Confira o peso da porção.",
+      );
+    }
+
+    const novo: Alimento = {
+      id: `custom-${Date.now()}`,
+      nome,
+      categoria: novaCategoria,
+      porcaoPadrao: porcao,
+      kcal, proteina, carbo, gordura,
+      personalizado: true,
+    };
+    setMeus(await adicionarPersonalizado(novo));
+    setCriando(false);
+    Keyboard.dismiss();
+    setBusca("");
+    // No iOS, abrir um Modal enquanto outro ainda fecha pode falhar em silêncio.
+    setTimeout(() => abrirGramas(novo), 400);
+  }
+
+  function removerPersonalizado(al: Alimento) {
+    Alert.alert(
+      `Remover "${al.nome}"?`,
+      "Ele some da sua lista. Refeições que você já registrou com ele continuam valendo.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Remover", style: "destructive", onPress: async () => setMeus(await ocultarPersonalizado(al.id)) },
+      ],
+    );
+  }
+
   function confirmarGramas() {
     if (!editando) return;
     const r = interpretarNumero(gramasTexto, REGRA_GRAMAS);
@@ -167,7 +316,7 @@ export default function RefeicaoScreen({ navigation, route }: any) {
     setItens((atual) =>
       atual.some((i) => i.alimentoId === id)
         ? atual.map((i) => (i.alimentoId === id ? { ...i, gramas: r.valor } : i))
-        : [...atual, { alimentoId: id, gramas: r.valor }],
+        : [...atual, { alimentoId: id, gramas: r.valor, ...(editando.personalizado ? { personalizado: editando } : {}) }],
     );
     setEditando(null);
   }
@@ -201,7 +350,7 @@ export default function RefeicaoScreen({ navigation, route }: any) {
         <Text style={styles.titulo}>{nome}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.conteudo, { paddingBottom: 120 + insets.bottom }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.conteudo, { paddingBottom: 120 + (tecladoAberto ? alturaTeclado : insets.bottom) }]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"} showsVerticalScrollIndicator={false}>
         {/* Foto do prato */}
         {fotoUri ? (
           <View style={styles.fotoCard}>
@@ -307,11 +456,23 @@ export default function RefeicaoScreen({ navigation, route }: any) {
                 <Text style={[styles.abaTxt, categoria === c.chave && styles.abaTxtAtiva]}>{c.nome}</Text>
               </TouchableOpacity>
             ))}
+            {meusVisiveis.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setCategoria("meus")}
+                style={[styles.aba, categoria === "meus" && styles.abaAtiva]}
+              >
+                <Text style={[styles.abaTxt, categoria === "meus" && styles.abaTxtAtiva]}>Meus alimentos</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         )}
 
         <View style={styles.grade}>
-          {lista.length === 0 && <Text style={styles.vazio}>Nenhum alimento encontrado.</Text>}
+          {lista.length === 0 && (
+            <Text style={styles.vazio}>
+              {busca.trim() ? (buscando ? `Procurando "${busca.trim()}"...` : `Não achamos "${busca.trim()}".`) : "Nada por aqui ainda."}
+            </Text>
+          )}
           {lista.map((al) => {
             const g = gramasDe(al.id);
             const marcado = g !== undefined;
@@ -319,6 +480,7 @@ export default function RefeicaoScreen({ navigation, route }: any) {
               <TouchableOpacity
                 key={al.id}
                 onPress={() => abrirGramas(al)}
+                onLongPress={al.personalizado ? () => removerPersonalizado(al) : undefined}
                 style={[styles.chip, marcado && styles.chipMarcado]}
                 accessibilityLabel={`${al.nome}${marcado ? `, ${g} gramas` : ""}`}
               >
@@ -330,14 +492,30 @@ export default function RefeicaoScreen({ navigation, route }: any) {
               </TouchableOpacity>
             );
           })}
+          <TouchableOpacity
+            onPress={() => abrirCriar(busca)}
+            style={styles.chipCriar}
+            accessibilityRole="button"
+            accessibilityLabel="Criar um alimento que não está na lista"
+          >
+            <Feather name="plus" size={14} color={colors.primary} />
+            <Text style={styles.chipCriarTxt}>
+              {busca.trim() && lista.length === 0 ? `Criar "${busca.trim()}"` : "Criar alimento"}
+            </Text>
+          </TouchableOpacity>
         </View>
+        {truncada && <Text style={styles.dicaBusca}>Mostrando os 60 primeiros. Digite mais letras para refinar.</Text>}
+        <Text style={styles.dicaBusca}>Valores aproximados por 100 g. Fontes: TACO (Unicamp) e Open Food Facts.</Text>
+        {meusVisiveis.length > 0 && categoria === "meus" && !busca.trim() && (
+          <Text style={styles.dicaBusca}>Segure um alimento seu para removê-lo da lista.</Text>
+        )}
 
         {itens.length > 0 && (
           <>
             <Text style={styles.secao}>No seu prato</Text>
             <View style={styles.card}>
               {itens.map((it, i) => {
-                const al = alimentoPorId(it.alimentoId);
+                const al = alimentoDoItem(it);
                 if (!al) return null;
                 const n = nutrientes(al, it.gramas);
                 return (
@@ -359,7 +537,7 @@ export default function RefeicaoScreen({ navigation, route }: any) {
         )}
       </ScrollView>
 
-      <View style={[styles.rodape, { paddingBottom: 28 + insets.bottom }]}>
+      <View style={[styles.rodape, { bottom: alturaTeclado, paddingBottom: tecladoAberto ? 12 : 28 + insets.bottom }]}>
         <View>
           <Text style={styles.rodapeKcal}>{usandoEstimativa ? "≈ " : ""}{Math.round(total.kcal)} kcal</Text>
           <Text style={styles.rodapeMacros}>
@@ -415,6 +593,7 @@ export default function RefeicaoScreen({ navigation, route }: any) {
                       <Text style={styles.sugerida}>Usar porção comum: {editando.porcaoPadrao} g</Text>
                     </TouchableOpacity>
                   )}
+                  {editando?.medida && <Text style={styles.previa}>Dica: {editando.medida}</Text>}
                   {erroGramas !== "" && <Text style={styles.erro}>{erroGramas}</Text>}
                   {previa && !erroGramas && (
                     <Text style={styles.previa}>
@@ -434,6 +613,119 @@ export default function RefeicaoScreen({ navigation, route }: any) {
               </TouchableWithoutFeedback>
             </View>
           </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+        <BarraTeclado />
+      </Modal>
+
+      {/* Criar um alimento que não está no catálogo */}
+      <Modal visible={criando} transparent animationType="slide" onRequestClose={() => setCriando(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <View style={styles.fundoModal}>
+            <View style={[styles.folha, { paddingBottom: 24 + insets.bottom, maxHeight: "92%" }]}>
+              <View style={styles.folhaTopo}>
+                <Text style={styles.folhaTitulo}>Novo alimento</Text>
+                <TouchableOpacity onPress={() => setCriando(false)} accessibilityLabel="Fechar">
+                  <Feather name="x" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
+                <View>
+                  <Text style={styles.rotuloCampo}>Nome</Text>
+                  <TextInput
+                    style={styles.campoTexto}
+                    value={novoNome}
+                    onChangeText={(t) => { setNovoNome(t); setErroNovo(""); }}
+                    placeholder="Ex.: Bolo da vovó"
+                    placeholderTextColor={colors.textSecondary}
+                    maxLength={60}
+                    returnKeyType="done"
+                  />
+                </View>
+
+                <View>
+                  <Text style={styles.rotuloCampo}>Categoria</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.abas} keyboardShouldPersistTaps="handled">
+                    {CATEGORIAS.map((c) => (
+                      <TouchableOpacity
+                        key={c.chave}
+                        onPress={() => setNovaCategoria(c.chave)}
+                        style={[styles.aba, novaCategoria === c.chave && styles.abaAtiva]}
+                      >
+                        <Text style={[styles.abaTxt, novaCategoria === c.chave && styles.abaTxtAtiva]}>{c.nome}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                <View>
+                  <Text style={styles.rotuloCampo}>Os valores que vou informar são...</Text>
+                  <View style={styles.segmento}>
+                    {([["100g", "Por 100 g"], ["porcao", "Por porção"]] as const).map(([chave, nomeModo]) => (
+                      <TouchableOpacity
+                        key={chave}
+                        onPress={() => { setNovoModo(chave); setErroNovo(""); }}
+                        style={[styles.segmentoItem, novoModo === chave && styles.segmentoAtivo]}
+                      >
+                        <Text style={[styles.segmentoTxt, novoModo === chave && styles.segmentoTxtAtivo]}>{nomeModo}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={styles.ajudaCampo}>
+                    {novoModo === "100g"
+                      ? "É o que vem no rótulo da embalagem, na coluna \"100 g\"."
+                      : "Use para uma fatia, uma unidade ou o prato que você comeu."}
+                  </Text>
+                </View>
+
+                {novoModo === "porcao" && (
+                  <View>
+                    <Text style={styles.rotuloCampo}>Peso da porção (g)</Text>
+                    <TextInput
+                      style={styles.campoTexto}
+                      value={novoPeso}
+                      onChangeText={(t) => { setNovoPeso(t); setErroNovo(""); }}
+                      keyboardType="decimal-pad"
+                      inputAccessoryViewID={ID_BARRA_TECLADO}
+                      placeholder="Ex.: 80"
+                      placeholderTextColor={colors.textSecondary}
+                      maxLength={5}
+                    />
+                  </View>
+                )}
+
+                <View style={styles.camposLinha}>
+                  {([
+                    ["Calorias (kcal)", novoKcal, setNovoKcal],
+                    ["Proteínas (g)", novoProt, setNovoProt],
+                    ["Carboidratos (g)", novoCarbo, setNovoCarbo],
+                    ["Gorduras (g)", novoGord, setNovoGord],
+                  ] as const).map(([rotulo, valor, setValor]) => (
+                    <View key={rotulo} style={styles.campoMetade}>
+                      <Text style={styles.rotuloCampo}>{rotulo}</Text>
+                      <TextInput
+                        style={styles.campoTexto}
+                        value={valor}
+                        onChangeText={(t) => { setValor(t); setErroNovo(""); }}
+                        keyboardType="decimal-pad"
+                        inputAccessoryViewID={ID_BARRA_TECLADO}
+                        placeholder="0"
+                        placeholderTextColor={colors.textSecondary}
+                        maxLength={6}
+                      />
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.ajudaCampo}>Não sabe as calorias? Deixe em branco que calculamos pelos nutrientes.</Text>
+
+                {erroNovo !== "" && <Text style={styles.erro}>{erroNovo}</Text>}
+
+                <TouchableOpacity style={styles.salvar} onPress={salvarNovoAlimento} activeOpacity={0.85}>
+                  <Text style={styles.salvarTxt}>Salvar e escolher a quantidade</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
         </KeyboardAvoidingView>
         <BarraTeclado />
       </Modal>
@@ -467,6 +759,19 @@ const criarStyles = (colors: Cores) => StyleSheet.create({
   abaTxt: { fontSize: 13, fontWeight: "600", color: colors.textSecondary },
   abaTxtAtiva: { color: "#fff" },
   grade: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
+  chipCriar: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 22, borderWidth: 1.5, borderStyle: "dashed", borderColor: colors.primary },
+  chipCriarTxt: { fontSize: 14, color: colors.primary, fontWeight: "700" },
+  dicaBusca: { fontSize: 12, color: colors.textSecondary, marginTop: 8 },
+  rotuloCampo: { fontSize: 13, fontWeight: "600", color: colors.textSecondary, marginBottom: 6 },
+  campoTexto: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: colors.textPrimary },
+  ajudaCampo: { fontSize: 12, color: colors.textSecondary, marginTop: 6 },
+  camposLinha: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  campoMetade: { width: "47%" },
+  segmento: { flexDirection: "row", backgroundColor: colors.fundoSuave, borderRadius: 12, padding: 3 },
+  segmentoItem: { flex: 1, alignItems: "center", paddingVertical: 9, borderRadius: 10 },
+  segmentoAtivo: { backgroundColor: colors.surface },
+  segmentoTxt: { fontSize: 14, fontWeight: "600", color: colors.textSecondary },
+  segmentoTxtAtivo: { color: colors.primary },
   vazio: { color: colors.textSecondary, paddingVertical: 12 },
   chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   chipMarcado: { backgroundColor: colors.primaryLight, borderColor: colors.primaryLight },
