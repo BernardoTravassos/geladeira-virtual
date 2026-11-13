@@ -61,6 +61,13 @@ export default function CardAgua({ metaMl }: Props) {
   const onda1 = useRef(new Animated.Value(0)).current;
   const onda2 = useRef(new Animated.Value(0)).current;
   const bolhas = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
+  const gota = useRef(new Animated.Value(0)).current; // gota que cai no copo a cada gole
+  const chapisco = useRef(new Animated.Value(0)).current; // a superfície "balança" quando a gota cai
+  const anel = useRef(new Animated.Value(0)).current; // onda de luz da meta batida
+  const faiscas = useRef([0, 1, 2, 3, 4, 5].map(() => new Animated.Value(0))).current;
+  const checkEscala = useRef(new Animated.Value(batida ? 1 : 0)).current;
+  const [exibido, setExibido] = useState(total); // número que "corre" até o valor novo
+  const contador = useRef(new Animated.Value(total)).current;
   const jaCarregou = useRef(false);
   const eraBatida = useRef(false);
 
@@ -119,15 +126,51 @@ export default function CardAgua({ metaMl }: Props) {
     Animated.timing(ondaOp, { toValue: total > 0 ? 1 : 0, duration: 250, useNativeDriver: true }).start();
   }, [total > 0, ondaOp]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // O número de litros corre até o valor novo em vez de trocar de repente.
+  useEffect(() => {
+    const id = contador.addListener(({ value }) => setExibido(value));
+    return () => contador.removeListener(id);
+  }, [contador]);
+  useEffect(() => {
+    Animated.timing(contador, { toValue: total, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+  }, [total, contador]);
+
+  // O check aparece com uma mola; some se a meta deixar de estar batida (desfazer).
+  useEffect(() => {
+    Animated.spring(checkEscala, { toValue: batida ? 1 : 0, friction: 5, tension: 120, useNativeDriver: true }).start();
+  }, [batida, checkEscala]);
+
   // Um "pulinho" no copo a cada gole e uma festa maior ao bater a meta.
   useEffect(() => {
     if (!jaCarregou.current) return;
     const festa = batida && !eraBatida.current;
     eraBatida.current = batida;
+    if (total === 0) return;
+    // Gota cai, a superfície balança e o copo dá um pulinho.
+    gota.setValue(0);
+    chapisco.setValue(0);
+    Animated.timing(gota, { toValue: 1, duration: 420, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() => {
+      Animated.sequence([
+        Animated.timing(chapisco, { toValue: 1, duration: 140, useNativeDriver: true }),
+        Animated.spring(chapisco, { toValue: 0, friction: 4, tension: 90, useNativeDriver: true }),
+      ]).start();
+    });
     Animated.sequence([
-      Animated.spring(pulso, { toValue: festa ? 1.14 : 1.06, useNativeDriver: true, friction: 4 }),
+      Animated.delay(380),
+      Animated.spring(pulso, { toValue: festa ? 1.1 : 1.04, useNativeDriver: true, friction: 4 }),
       Animated.spring(pulso, { toValue: 1, useNativeDriver: true, friction: 5 }),
     ]).start();
+    if (festa) {
+      // Comemoração contida: um anel de luz que se abre e algumas gotinhas que sobem e somem.
+      anel.setValue(0);
+      faiscas.forEach((f) => f.setValue(0));
+      Animated.parallel([
+        Animated.timing(anel, { toValue: 1, duration: 1100, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        ...faiscas.map((f, i) =>
+          Animated.timing(f, { toValue: 1, duration: 1000, delay: 250 + i * 70, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        ),
+      ]).start();
+    }
   }, [total]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function salvar(lista: number[]) {
@@ -141,12 +184,43 @@ export default function CardAgua({ metaMl }: Props) {
   const falta = Math.max(meta - total, 0);
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, batida && styles.cardBatido]}>
       <View style={styles.linha}>
+        <View style={styles.palco}>
+          {/* Anel de luz e gotinhas da meta batida: ficam fora do copo, que corta o que passa da borda */}
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.anel, { opacity: anel.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 0.55, 0] }), transform: [{ scale: anel.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.35] }) }] }]}
+          />
+          {faiscas.map((f, i) => {
+            const ang = (-90 + (i - 2.5) * 34) * (Math.PI / 180);
+            const raio = 62 + (i % 2) * 14;
+            return (
+              <Animated.View
+                key={i}
+                pointerEvents="none"
+                style={[
+                  styles.faisca,
+                  {
+                    opacity: f.interpolate({ inputRange: [0, 0.2, 0.7, 1], outputRange: [0, 0.9, 0.7, 0] }),
+                    transform: [
+                      { translateX: f.interpolate({ inputRange: [0, 1], outputRange: [0, Math.cos(ang) * raio] }) },
+                      { translateY: f.interpolate({ inputRange: [0, 1], outputRange: [0, Math.sin(ang) * raio] }) },
+                      { scale: f.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.4, 1, 0.6] }) },
+                    ],
+                  },
+                ]}
+              />
+            );
+          })}
         <Animated.View style={[styles.copo, { transform: [{ scale: pulso }] }]}>
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.gota, { opacity: gota.interpolate({ inputRange: [0, 0.1, 0.9, 1], outputRange: [0, 1, 1, 0] }), transform: [{ translateY: gota.interpolate({ inputRange: [0, 1], outputRange: [0, ALTURA * (1 - fracao) - 12] }) }] }]}
+          />
           <Animated.View style={[styles.agua, { height: alturaAgua }]}>
             <Animated.View
-              style={[styles.onda, { opacity: ondaOp, transform: [{ translateX: onda1.interpolate({ inputRange: [0, 1], outputRange: [-20, -90] }) }] }]}
+              style={[styles.onda, { opacity: ondaOp, transform: [{ scaleY: chapisco.interpolate({ inputRange: [0, 1], outputRange: [1, 1.7] }) }, { translateX: onda1.interpolate({ inputRange: [0, 1], outputRange: [-20, -90] }) }] }]}
             />
             <Animated.View
               style={[styles.onda, styles.onda2, { opacity: ondaOp, transform: [{ translateX: onda2.interpolate({ inputRange: [0, 1], outputRange: [-100, -30] }) }] }]}
@@ -168,8 +242,11 @@ export default function CardAgua({ metaMl }: Props) {
             ))}
           </Animated.View>
           {total === 0 && <Feather name="droplet" size={26} color="#B9DDF3" style={styles.gotaVazia} />}
-          {batida && <Feather name="check" size={34} color="#fff" style={styles.check} />}
+          <Animated.View pointerEvents="none" style={[styles.check, { opacity: checkEscala, transform: [{ scale: checkEscala }] }]}>
+            <Feather name="check" size={34} color="#fff" />
+          </Animated.View>
         </Animated.View>
+        </View>
 
         <View style={styles.info}>
           <View style={styles.titulo}>
@@ -177,7 +254,7 @@ export default function CardAgua({ metaMl }: Props) {
             <Text style={styles.tituloTxt}>Hidratação</Text>
           </View>
           <Text style={styles.valor}>
-            {litros(total)} <Text style={styles.valorUn}>L</Text>
+            {litros(exibido)} <Text style={styles.valorUn}>L</Text>
           </Text>
           <Text style={styles.sub}>
             de {litros(meta)} L · {Math.round((total / meta) * 100)}%
@@ -213,7 +290,12 @@ export default function CardAgua({ metaMl }: Props) {
 
 const criarStyles = (colors: Cores) => StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 14, ...sombra },
+  cardBatido: { borderColor: AGUA },
   linha: { flexDirection: "row", alignItems: "center", gap: 18 },
+  palco: { width: LARGURA, height: ALTURA, alignItems: "center", justifyContent: "center" },
+  anel: { position: "absolute", width: LARGURA + 8, height: ALTURA + 8, borderRadius: 34, borderWidth: 3, borderColor: AGUA },
+  faisca: { position: "absolute", width: 8, height: 8, borderRadius: 4, backgroundColor: AGUA },
+  gota: { position: "absolute", top: 0, width: 8, height: 11, borderRadius: 5, backgroundColor: AGUA_ESCURA, alignSelf: "center", zIndex: 2 },
   copo: {
     width: LARGURA,
     height: ALTURA,
