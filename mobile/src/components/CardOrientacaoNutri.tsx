@@ -1,14 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, LayoutAnimation, Platform, StyleSheet, Text, TouchableOpacity, UIManager, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { alimentoPorId } from "../data/alimentos";
 import { useCores } from "../theme/tema";
 import { sombra } from "../theme/colors";
 import type { Cores } from "../theme/colors";
-import { ORIENTACAO_NUTRICIONISTA as o, OrientacaoRefeicao } from "../mocks/orientacaoNutricionista";
-import { detalharRefeicao, ItemPlano } from "../utils/refeicaoDetalhe";
-import { aplicarEdicoes, carregarEdicoes, Edicoes, restaurarEdicao, salvarEdicao } from "../utils/planoNutri";
-import DetalheRefeicaoModal from "./DetalheRefeicaoModal";
+import { ORIENTACAO_NUTRICIONISTA as o } from "../mocks/orientacaoNutricionista";
 
 if (Platform.OS === "android") {
   // @ts-ignore — só existe na arquitetura antiga; na nova a chamada é ignorada.
@@ -23,16 +19,6 @@ export default function CardOrientacaoNutri() {
   const colors = useCores();
   const styles = useMemo(() => criarStyles(colors), [colors]);
   const [aberto, setAberto] = useState(true);
-  const [chaveAberta, setChaveAberta] = useState<string | null>(null);
-  const [edicoes, setEdicoes] = useState<Edicoes>({});
-
-  useEffect(() => {
-    carregarEdicoes().then(setEdicoes);
-  }, []);
-
-  // O plano que a nutricionista definiu, com as alterações feitas por cima.
-  const refeicoes = useMemo(() => aplicarEdicoes(o.refeicoes, edicoes), [edicoes]);
-  const detalhe: OrientacaoRefeicao | null = refeicoes.find((r) => r.chave === chaveAberta) ?? null;
   const giro = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -90,36 +76,6 @@ export default function CardOrientacaoNutri() {
               <Meta valor={`${m.gordura} g`} rotulo="gordura" styles={styles} />
               <Meta valor={`${(m.aguaMl / 1000).toLocaleString("pt-BR")} L`} rotulo="água" styles={styles} />
             </View>
-          </Secao>
-
-          <Secao titulo="Plano de refeições" icone="clock" colors={colors} styles={styles}>
-            {refeicoes.map((r, i) => {
-              const t = detalharRefeicao(r.itens).total;
-              return (
-                <TouchableOpacity
-                  key={r.chave}
-                  activeOpacity={0.7}
-                  onPress={() => setChaveAberta(r.chave)}
-                  style={[styles.refeicao, i < refeicoes.length - 1 && styles.divisor]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Ver detalhes: ${r.nome}`}
-                >
-                  <Text style={styles.hora}>{r.horario}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.refNome}>{r.nome}</Text>
-                    <Text style={styles.refDesc}>
-                      {edicoes[r.chave] ? descreverItens(r.itens) : r.sugestao}
-                    </Text>
-                    {edicoes[r.chave] && <Text style={styles.editadaTag}>Editada por você</Text>}
-                    <Text style={styles.verDetalhes}>Ver alimentos, macros e vitaminas</Text>
-                  </View>
-                  <View style={{ alignItems: "flex-end", gap: 4 }}>
-                    <Text style={styles.refKcal}>{t.kcal} kcal</Text>
-                    <Feather name="chevron-right" size={16} color={colors.textSecondary} />
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
           </Secao>
 
           <Secao titulo="Faça" icone="check-circle" colors={colors} styles={styles}>
@@ -181,24 +137,8 @@ export default function CardOrientacaoNutri() {
         <Text style={styles.rodapeTxt}>{aberto ? "Mostrar menos" : "Ver orientação completa"}</Text>
         <Feather name={aberto ? "chevron-up" : "chevron-down"} size={14} color={colors.primary} />
       </TouchableOpacity>
-      <DetalheRefeicaoModal
-        refeicao={detalhe}
-        editada={!!(detalhe && edicoes[detalhe.chave])}
-        metaCalorias={m.calorias}
-        onFechar={() => setChaveAberta(null)}
-        onSalvar={async (chave: string, itens: ItemPlano[]) => setEdicoes(await salvarEdicao(chave, itens))}
-        onRestaurar={async (chave: string) => setEdicoes(await restaurarEdicao(chave))}
-      />
     </View>
   );
-}
-
-/** "Ovo, de galinha, inteiro, cru, Pão integral de forma" → usado quando a refeição foi editada. */
-function descreverItens(itens: ItemPlano[]) {
-  return itens
-    .map((i) => alimentoPorId(i.alimentoId)?.nome.split(",")[0].trim() ?? "")
-    .filter(Boolean)
-    .join(", ");
 }
 
 type Estilos = ReturnType<typeof criarStyles>;

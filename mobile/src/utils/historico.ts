@@ -62,7 +62,8 @@ function resumir(data: Date, dia: RegistroDoDia, exemplo: boolean, aguaMl: numbe
 
   for (const [chave, reg] of Object.entries(dia)) {
     const t = totaisDoRegistro(reg);
-    porRefeicao[chave] = Math.round(t.kcal);
+    const k = chave === "lanche" ? "lanche-tarde" : chave; // chave antiga
+    porRefeicao[k] = (porRefeicao[k] ?? 0) + Math.round(t.kcal);
     kcal += t.kcal; proteina += t.proteina; carbo += t.carbo; gordura += t.gordura;
 
     if (reg.itens.length > 0) {

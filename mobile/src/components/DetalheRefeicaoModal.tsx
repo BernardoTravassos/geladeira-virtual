@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
+  Image,
   Easing,
   KeyboardAvoidingView,
   LayoutAnimation,
@@ -23,7 +24,7 @@ import { useCores } from "../theme/tema";
 import { sombra } from "../theme/colors";
 import type { Cores } from "../theme/colors";
 import type { OrientacaoRefeicao } from "../mocks/orientacaoNutricionista";
-import { detalharItem, detalharRefeicao, formatarQuantidade, ItemDetalhado, ItemPlano, MicroValor } from "../utils/refeicaoDetalhe";
+import { AlimentoDaFoto, detalharFoto, detalharItem, detalharRefeicao, formatarQuantidade, ItemDetalhado, ItemPlano, MicroValor } from "../utils/refeicaoDetalhe";
 import { ALIMENTOS, palavrasDaBusca } from "../data/alimentos";
 import { filtrarAlimentos } from "../utils/buscaAlimentos";
 import { buscarNoServidor } from "../utils/catalogoServidor";
@@ -46,10 +47,26 @@ type Props = {
   onFechar: () => void;
   onSalvar: (chave: string, itens: ItemPlano[]) => void;
   onRestaurar: (chave: string) => void;
+  /** O que a pessoa registrou nesta refeição hoje (null = ainda não registrou). */
+  registro?: {
+    kcal: number;
+    /** "foto": cards dos alimentos reconhecidos pela IA; "itens": o que foi marcado (ou o plano registrado). */
+    origem: "foto" | "itens";
+    itens: ItemPlano[];
+    fotoAlimentos?: AlimentoDaFoto[];
+    fotoUri?: string;
+  } | null;
+  onRegistrarComoPlano?: (chave: string) => void;
+  /** Abre a tela de refeição com o prato do plano já montado, para ajustar. */
+  onAjustar?: (chave: string) => void;
+  /** Abre a tela de refeição já com a câmera, para fotografar o prato. */
+  onFotografar?: (chave: string) => void;
+  /** Abre a tela de refeição para ver ou editar o que foi registrado. */
+  onVerRegistro?: (chave: string) => void;
 };
 
 /** Detalhe de uma refeição do plano: cada alimento com ilustração, macros e vitaminas, e edição. */
-export default function DetalheRefeicaoModal({ refeicao, editada, metaCalorias, onFechar, onSalvar, onRestaurar }: Props) {
+export default function DetalheRefeicaoModal({ refeicao, editada, metaCalorias, onFechar, onSalvar, onRestaurar, registro, onRegistrarComoPlano, onAjustar, onFotografar, onVerRegistro }: Props) {
   const colors = useCores();
   const styles = useMemo(() => criarStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
@@ -57,6 +74,7 @@ export default function DetalheRefeicaoModal({ refeicao, editada, metaCalorias, 
   const { height: alturaTela } = useWindowDimensions();
 
   const [editando, setEditando] = useState(false);
+  const [menuEditar, setMenuEditar] = useState(false); // escolha: ajustar alimentos ou fotografar
   const [rascunho, setRascunho] = useState<ItemPlano[]>([]);
   const [adicionando, setAdicionando] = useState(false);
   const [busca, setBusca] = useState("");
@@ -75,6 +93,7 @@ export default function DetalheRefeicaoModal({ refeicao, editada, metaCalorias, 
   // Ao abrir outra refeição (ou fechar), a edição começa do zero.
   useEffect(() => {
     setEditando(false);
+    setMenuEditar(false);
     setAdicionando(false);
     setBusca("");
   }, [chave]);
@@ -103,7 +122,19 @@ export default function DetalheRefeicaoModal({ refeicao, editada, metaCalorias, 
   }, [busca, adicionando]);
 
   const itensAtuais = editando ? rascunho : refeicao?.itens ?? [];
-  const det = useMemo(() => (refeicao ? detalharRefeicao(itensAtuais) : null), [refeicao, itensAtuais]);
+  // O plano da nutricionista (para comparar) e o que é EXIBIDO nos cards: o plano, ou — se a pessoa
+  // já registrou a refeição — o que ela comeu de verdade (alimentos da foto ou os marcados).
+  const planoDet = useMemo(() => (refeicao ? detalharRefeicao(refeicao.itens) : null), [refeicao]);
+  const mostrandoRegistro = !editando && !!registro;
+  const det = useMemo(() => {
+    if (!refeicao) return null;
+    if (mostrandoRegistro && registro) {
+      return registro.origem === "foto" && registro.fotoAlimentos?.length
+        ? detalharFoto(registro.fotoAlimentos)
+        : detalharRefeicao(registro.itens);
+    }
+    return detalharRefeicao(itensAtuais);
+  }, [refeicao, mostrandoRegistro, registro, itensAtuais]);
 
   const resultados = useMemo(
     () => (adicionando && palavrasDaBusca(busca).length > 0 ? filtrarAlimentos(ALIMENTOS, busca, ordemServidor).slice(0, 8) : []),
@@ -235,22 +266,30 @@ export default function DetalheRefeicaoModal({ refeicao, editada, metaCalorias, 
                   {editando ? " · editando" : editada ? " · editada" : ""}
                 </Text>
               </View>
-              {!editando && (
-                <TouchableOpacity onPress={iniciarEdicao} style={styles.editar} accessibilityRole="button" accessibilityLabel="Editar alimentos desta refeição">
-                  <Feather name="edit-2" size={14} color={colors.primary} />
-                  <Text style={styles.editarTxt}>Editar</Text>
-                </TouchableOpacity>
-              )}
               <TouchableOpacity onPress={pedirFechar} style={styles.fechar} accessibilityLabel="Fechar">
                 <Feather name="x" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <ScrollView
-              contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: editando ? 16 : 24 + insets.bottom }}
+              contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 16 }}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
+              {!editando && registro && (
+                <View style={styles.registrado}>
+                  <Feather name="check-circle" size={18} color={colors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.registradoTitulo}>Você registrou {registro.kcal} kcal</Text>
+                    <Text style={styles.registradoSub}>
+                      {Math.abs(registro.kcal - (planoDet?.total.kcal ?? 0)) < 1
+                        ? "Igual ao plano."
+                        : `${registro.kcal > (planoDet?.total.kcal ?? 0) ? "+" : "−"}${Math.abs(registro.kcal - (planoDet?.total.kcal ?? 0))} kcal em relação ao plano (${planoDet?.total.kcal ?? 0}).`}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {/* Totais da refeição (acompanham a edição em tempo real) */}
               <View style={styles.totais}>
                 <View style={styles.kcalBloco}>
@@ -266,7 +305,23 @@ export default function DetalheRefeicaoModal({ refeicao, editada, metaCalorias, 
               </View>
               <BarraProporcao proteina={det.total.proteina} carbo={det.total.carbo} gordura={det.total.gordura} styles={styles} />
 
-              <Text style={styles.secao}>Alimentos</Text>
+              <Text style={styles.secao}>
+                {mostrandoRegistro ? (registro?.origem === "foto" ? "O que você comeu · reconhecido pela foto" : "O que você comeu") : "Indicação do seu nutricionista"}
+              </Text>
+
+              {mostrandoRegistro && registro?.origem === "foto" && registro.fotoUri && (
+                <Image source={{ uri: registro.fotoUri }} style={styles.fotoPrato} accessibilityLabel="Foto do prato" />
+              )}
+
+              {mostrandoRegistro && planoDet && planoDet.itens.length > 0 && (
+                <View style={styles.planoRef}>
+                  <Feather name="clipboard" size={14} color={colors.textSecondary} style={{ marginTop: 1 }} />
+                  <Text style={styles.planoRefTxt}>
+                    <Text style={{ fontWeight: "800" }}>Plano da nutricionista ({planoDet.total.kcal} kcal): </Text>
+                    {planoDet.itens.map((i) => i.alimento.nome.split(",")[0].trim()).join(", ")}
+                  </Text>
+                </View>
+              )}
 
               {editando ? (
                 <>
@@ -374,8 +429,80 @@ export default function DetalheRefeicaoModal({ refeicao, editada, metaCalorias, 
               )}
             </ScrollView>
 
+            {!editando && onRegistrarComoPlano && menuEditar && (
+              <View style={[styles.menuEditar, { paddingBottom: 12 + insets.bottom }]}>
+                <Text style={styles.menuTitulo}>Como você quer editar?</Text>
+                <TouchableOpacity
+                  onPress={() => { setMenuEditar(false); onAjustar?.(refeicao.chave); }}
+                  style={styles.opcao}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.opcaoIcone}>
+                    <Feather name="edit-3" size={18} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.opcaoTitulo}>Ajustar o que comi</Text>
+                    <Text style={styles.opcaoSub}>Começa pelo prato do plano</Text>
+                  </View>
+                  <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => { setMenuEditar(false); onFotografar?.(refeicao.chave); }}
+                  style={styles.opcao}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.opcaoIcone}>
+                    <Feather name="camera" size={18} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.opcaoTitulo}>Fotografar o prato</Text>
+                    <Text style={styles.opcaoSub}>Estimamos as calorias pela foto</Text>
+                  </View>
+                  <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => { setMenuEditar(false); iniciarEdicao(); }}
+                  style={styles.opcao}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.opcaoIcone}>
+                    <Feather name="sliders" size={18} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.opcaoTitulo}>Mudar o plano</Text>
+                    <Text style={styles.opcaoSub}>Troca alimentos e quantidades desta refeição</Text>
+                  </View>
+                  <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setMenuEditar(false)} style={styles.restaurar} accessibilityRole="button">
+                  <Text style={styles.restaurarTxt}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {!editando && onRegistrarComoPlano && !menuEditar && (
+              <View style={[styles.rodape, { paddingBottom: 12 + insets.bottom }]}>
+                {registro ? (
+                  <TouchableOpacity onPress={() => onVerRegistro?.(refeicao.chave)} style={styles.botaoPri} accessibilityRole="button">
+                    <Text style={styles.botaoPriTxt} numberOfLines={1}>Ver ou editar o registro</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                    <TouchableOpacity onPress={() => setMenuEditar(true)} style={styles.botaoEditar} accessibilityRole="button" accessibilityLabel="Editar: ajustar o que comi, fotografar o prato ou mudar o plano">
+                      <Feather name="edit-3" size={15} color={colors.primary} />
+                      <Text style={styles.botaoEditarTxt} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Editar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => onRegistrarComoPlano(refeicao.chave)} style={styles.botaoPri} accessibilityRole="button">
+                      <Feather name="check" size={16} color="#fff" />
+                      <Text style={styles.botaoPriTxt} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Registrar como no plano</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            )}
+
             {editando && (
-              <View style={[styles.rodape, { paddingBottom: 12 + (Platform.OS === "ios" ? insets.bottom : 0) }]}>
+              <View style={[styles.rodape, { paddingBottom: 12 + insets.bottom }]}>
                 <TouchableOpacity onPress={cancelarEdicao} style={styles.botaoSec} accessibilityRole="button">
                   <Text style={styles.botaoSecTxt}>Cancelar</Text>
                 </TouchableOpacity>
@@ -546,8 +673,6 @@ const criarStyles = (colors: Cores) =>
     titulo: { fontSize: 20, fontWeight: "800", color: colors.textPrimary },
     sub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
     fechar: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.fundoSuave, alignItems: "center", justifyContent: "center" },
-    editar: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 34, borderRadius: 17, backgroundColor: colors.verdeSuave },
-    editarTxt: { fontSize: 13, fontWeight: "700", color: colors.primary },
     totais: { flexDirection: "row", gap: 14, alignItems: "center", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 18, padding: 14 },
     kcalBloco: { alignItems: "center", minWidth: 96 },
     kcalValor: { fontSize: 36, fontWeight: "800", color: colors.primary },
@@ -600,12 +725,26 @@ const criarStyles = (colors: Cores) =>
     dicaTxt: { fontSize: 13, lineHeight: 19, color: colors.textPrimary, marginTop: 2 },
     troca: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 11 },
     trocaTxt: { flex: 1, fontSize: 13, color: colors.textPrimary },
+    fotoPrato: { width: "100%", height: 170, borderRadius: 16 },
+    planoRef: { flexDirection: "row", gap: 8, padding: 10, borderRadius: 12, backgroundColor: colors.fundoSuave },
+    planoRefTxt: { flex: 1, fontSize: 12, lineHeight: 17, color: colors.textSecondary },
+    registrado: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.verdeSuave, borderRadius: 14, padding: 12 },
+    registradoTitulo: { fontSize: 14, fontWeight: "800", color: colors.primary },
+    registradoSub: { fontSize: 12, color: colors.textPrimary, marginTop: 2 },
+    menuEditar: { gap: 8, paddingHorizontal: 16, paddingTop: 14, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
+    menuTitulo: { fontSize: 13, fontWeight: "800", color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 },
+    opcao: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
+    opcaoIcone: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.verdeSuave, alignItems: "center", justifyContent: "center" },
+    opcaoTitulo: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
+    opcaoSub: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
     restaurar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8 },
     restaurarTxt: { fontSize: 12, fontWeight: "600", color: colors.textSecondary },
     aviso: { fontSize: 11, lineHeight: 16, color: colors.textSecondary, textAlign: "center" },
     rodape: { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 12, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
-    botaoSec: { flex: 1, height: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
-    botaoSecTxt: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
-    botaoPri: { flex: 2, height: 48, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-    botaoPriTxt: { fontSize: 15, fontWeight: "800", color: "#fff" },
+    botaoSec: { flex: 1, height: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, paddingHorizontal: 10 },
+    botaoSecTxt: { flexShrink: 1, fontSize: 15, fontWeight: "700", color: colors.textPrimary },
+    botaoEditar: { flex: 1, height: 48, borderRadius: 14, backgroundColor: colors.verdeSuave, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, paddingHorizontal: 10 },
+    botaoEditarTxt: { flexShrink: 1, fontSize: 15, fontWeight: "800", color: colors.primary },
+    botaoPri: { flex: 2, height: 48, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, paddingHorizontal: 10 },
+    botaoPriTxt: { flexShrink: 1, fontSize: 15, fontWeight: "800", color: "#fff" },
   });

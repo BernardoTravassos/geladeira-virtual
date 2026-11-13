@@ -23,9 +23,13 @@ import CardAgua from "../components/CardAgua";
 import { DEV } from "../config/dev";
 import CardOrientacaoNutri from "../components/CardOrientacaoNutri";
 import ChatNutri from "../components/ChatNutri";
+import DetalheRefeicaoModal from "../components/DetalheRefeicaoModal";
+import { ORIENTACAO_NUTRICIONISTA, TEM_NUTRICIONISTA } from "../mocks/orientacaoNutricionista";
+import { aplicarEdicoes, carregarEdicoes, descreverItens, Edicoes, restaurarEdicao, salvarEdicao } from "../utils/planoNutri";
+import { detalharRefeicao, ItemPlano } from "../utils/refeicaoDetalhe";
 import { useChaveDoDia } from "../utils/dia";
 import { RECEITAS } from "../mocks/receitas";
-import { carregarDia, totaisDoRegistro, RegistroDoDia } from "../utils/refeicoes";
+import { carregarDia, nomesDoRegistro, salvarRefeicao, totaisDoRegistro, RegistroDoDia } from "../utils/refeicoes";
 
 // Cada refeição tem a sua cor, para a lista deixar de ser uma fila de bolinhas iguais.
 // No modo escuro o fundo é a própria cor do ícone, bem transparente (os pastéis
@@ -34,6 +38,8 @@ const TOM_REFEICAO: Record<string, { claro: string; icone: string }> = {
   cafe: { claro: "#FFF0D9", icone: "#D98324" },
   almoco: { claro: "#E3F4E8", icone: "#2E8B57" },
   lanche: { claro: "#FDE7EB", icone: "#D6455D" },
+  "lanche-manha": { claro: "#FDF1E3", icone: "#E0793A" },
+  "lanche-tarde": { claro: "#FDE7EB", icone: "#D6455D" },
   jantar: { claro: "#E4ECFB", icone: "#3F63B8" },
   ceia: { claro: "#EDE6FA", icone: "#7650C2" },
 };
@@ -51,11 +57,12 @@ type Refeicao = {
 // TODO: quando o backend registrar as refeições do dia, isto deve vir da API.
 // Por enquanto é dado de exemplo: só o café da manhã aparece como feito.
 const refeicoesBase: Refeicao[] = [
-  { chave: "cafe", nome: "Café da manhã", horario: "07:30", icone: "coffee", fracaoDaMeta: 0.25, feita: false },
-  { chave: "almoco", nome: "Almoço", horario: "12:30", icone: "sun", fracaoDaMeta: 0.3, feita: false },
-  { chave: "lanche", nome: "Lanche", horario: "16:00", icone: "zap", fracaoDaMeta: 0.1, feita: false },
-  { chave: "jantar", nome: "Jantar", horario: "19:30", icone: "moon", fracaoDaMeta: 0.25, feita: false },
-  { chave: "ceia", nome: "Ceia", horario: "21:30", icone: "star", fracaoDaMeta: 0.1, feita: false },
+  { chave: "cafe", nome: "Café da manhã", horario: "07:30", icone: "coffee", fracaoDaMeta: 0.2, feita: false },
+  { chave: "lanche-manha", nome: "Lanche da manhã", horario: "10:00", icone: "sunrise", fracaoDaMeta: 0.1, feita: false },
+  { chave: "almoco", nome: "Almoço", horario: "12:30", icone: "sun", fracaoDaMeta: 0.27, feita: false },
+  { chave: "lanche-tarde", nome: "Lanche da tarde", horario: "16:00", icone: "zap", fracaoDaMeta: 0.15, feita: false },
+  { chave: "jantar", nome: "Jantar", horario: "19:30", icone: "moon", fracaoDaMeta: 0.22, feita: false },
+  { chave: "ceia", nome: "Ceia", horario: "21:30", icone: "star", fracaoDaMeta: 0.06, feita: false },
 ];
 
 // TODO: virá da tabela "consultas". Por enquanto são as receitas de exemplo.
@@ -72,6 +79,8 @@ export default function HomeScreen({ navigation, route }: any) {
   const [paywallVisivel, setPaywallVisivel] = useState(false);
   const [gerando, setGerando] = useState(false);
   const [registros, setRegistros] = useState<RegistroDoDia>({});
+  const [edicoes, setEdicoes] = useState<Edicoes>({});
+  const [chaveAberta, setChaveAberta] = useState<string | null>(null);
 
   // Recarrega ao voltar da tela da refeição, para o card já aparecer como "Feita".
   // Ao virar o dia (00h) a chave muda e as refeições de hoje recomeçam zeradas.
@@ -79,6 +88,7 @@ export default function HomeScreen({ navigation, route }: any) {
   useFocusEffect(
     useCallback(() => {
       carregarDia().then(setRegistros);
+      carregarEdicoes().then(setEdicoes);
     }, [chaveDoDia]),
   );
 
@@ -130,6 +140,42 @@ export default function HomeScreen({ navigation, route }: any) {
   async function handleLogout() {
     await AsyncStorage.multiRemove(["@geladeira:token", "@geladeira:wizardDone"]);
     navigation.replace("Login");
+  }
+
+  // O plano da nutricionista (com as alterações da pessoa), por refeição. Sem nutricionista, vazio.
+  const plano = useMemo(
+    () => (TEM_NUTRICIONISTA ? aplicarEdicoes(ORIENTACAO_NUTRICIONISTA.refeicoes, edicoes) : []),
+    [edicoes],
+  );
+  const planoPorChave = useMemo(() => Object.fromEntries(plano.map((r) => [r.chave, r])), [plano]);
+  const detalhe = plano.find((r) => r.chave === chaveAberta) ?? null;
+
+  function irParaRefeicao(chave: string, itensIniciais?: ItemPlano[], abrirCamera = false) {
+    const r = refeicoesBase.find((x) => x.chave === chave);
+    if (!r) return;
+    navigation.navigate("Refeicao", {
+      chave: r.chave, nome: r.nome, icone: r.icone, fracaoDaMeta: r.fracaoDaMeta,
+      itensIniciais: itensIniciais?.map((i) => ({ alimentoId: i.alimentoId, gramas: i.gramas })),
+      abrirCamera,
+    });
+  }
+
+  /** Toca na linha: com plano, abre o detalhe do que comer; sem plano, vai direto registrar. */
+  function abrirRefeicao(chave: string) {
+    if (planoPorChave[chave]) setChaveAberta(chave);
+    else irParaRefeicao(chave);
+  }
+
+  /** Um toque: registra a refeição exatamente como está no plano. */
+  async function registrarComoPlano(chave: string) {
+    const pr = planoPorChave[chave];
+    if (!pr) return;
+    await salvarRefeicao(chave, {
+      itens: pr.itens.map((i) => ({ alimentoId: i.alimentoId, gramas: i.gramas })),
+      registradoEm: new Date().toISOString(),
+    });
+    setRegistros(await carregarDia());
+    setChaveAberta(null);
   }
 
   const metas = calcularMetas(perfil);
@@ -233,33 +279,68 @@ export default function HomeScreen({ navigation, route }: any) {
           </View>
         )}
 
-        {/* Refeições do dia */}
-        <Text style={styles.sectionTitle}>Refeições do dia</Text>
+        {/* Refeições do dia: o que comer (plano) e o que já foi comido (registro), numa lista só */}
+        <View>
+          <Text style={styles.sectionTitle}>Refeições do dia</Text>
+          {TEM_NUTRICIONISTA && <Text style={styles.planoSub}>Seguindo o plano de {ORIENTACAO_NUTRICIONISTA.nutricionista.nome}</Text>}
+        </View>
         <View style={styles.card}>
-          {refeicoesDoDia.map((r, i) => (
-            <TouchableOpacity
-              key={r.chave}
-              activeOpacity={0.7}
-              onPress={() => navigation.navigate("Refeicao", { chave: r.chave, nome: r.nome, icone: r.icone, fracaoDaMeta: r.fracaoDaMeta })}
-              style={[styles.mealRow, i < refeicoesDoDia.length - 1 && styles.mealRowDivider]}
-            >
-              <View style={[styles.mealIcon, styles.mealIconGrande, { backgroundColor: escuro ? `${TOM_REFEICAO[r.chave]?.icone}33` : TOM_REFEICAO[r.chave]?.claro }]}>
-                <Feather name={r.icone} size={18} color={TOM_REFEICAO[r.chave]?.icone ?? colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.mealRowName}>{r.nome}</Text>
-                <Text style={styles.mealRowInfo}>
-                  {r.feita ? `${r.caloriasConsumidas} kcal registradas` : `${r.horario} · ~${Math.round(metas.calorias * r.fracaoDaMeta)} kcal`}
-                </Text>
-              </View>
-              <View style={[styles.chip, r.feita ? styles.chipDone : styles.chipPending]}>
-                <Text style={[styles.chipText, r.feita ? styles.chipTextDone : styles.chipTextPending]}>
-                  {r.feita ? "✓ Feita" : "Pendente"}
-                </Text>
-              </View>
-              <Feather name="chevron-right" size={16} color={colors.textSecondary} />
-            </TouchableOpacity>
-          ))}
+          {refeicoesDoDia.map((r, i) => {
+            const pr = planoPorChave[r.chave];
+            const kcalPlano = pr ? detalharRefeicao(pr.itens).total.kcal : null;
+            const delta = r.feita && kcalPlano != null ? (r.caloriasConsumidas ?? 0) - kcalPlano : null;
+            return (
+              <TouchableOpacity
+                key={r.chave}
+                activeOpacity={0.7}
+                onPress={() => abrirRefeicao(r.chave)}
+                style={[styles.mealRow, i < refeicoesDoDia.length - 1 && styles.mealRowDivider]}
+                accessibilityRole="button"
+                accessibilityLabel={`${r.nome}, ${r.feita ? "feita" : "pendente"}`}
+              >
+                <View style={[styles.mealIcon, styles.mealIconGrande, { backgroundColor: escuro ? `${TOM_REFEICAO[r.chave]?.icone}33` : TOM_REFEICAO[r.chave]?.claro }]}>
+                  <Feather name={r.icone} size={18} color={TOM_REFEICAO[r.chave]?.icone ?? colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.mealRowName}>{r.nome}</Text>
+                  <Text style={styles.mealRowInfo}>
+                    {r.feita
+                      ? `${r.caloriasConsumidas} kcal registradas`
+                      : kcalPlano != null
+                        ? `${r.horario} · plano: ${kcalPlano} kcal`
+                        : `${r.horario} · ~${Math.round(metas.calorias * r.fracaoDaMeta)} kcal`}
+                    {delta != null && Math.abs(delta) >= 1 && (
+                      <Text style={delta > 0 ? styles.deltaMais : styles.deltaMenos}>{`  ${delta > 0 ? "+" : "−"}${Math.abs(delta)} vs plano`}</Text>
+                    )}
+                  </Text>
+                  {(r.feita ? !!registros[r.chave] : !!pr) && (
+                    <Text style={styles.alimentosPlano} numberOfLines={1}>
+                      {r.feita ? nomesDoRegistro(registros[r.chave]) : descreverItens(pr.itens)}
+                    </Text>
+                  )}
+                  {pr && !r.feita && (
+                    <TouchableOpacity
+                      onPress={() => registrarComoPlano(r.chave)}
+                      style={styles.botaoPlano}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Registrar ${r.nome} como no plano`}
+                    >
+                      <Feather name="check" size={13} color={colors.primary} />
+                      <Text style={styles.botaoPlanoTxt}>Registrar como no plano</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={[styles.chip, r.feita ? styles.chipDone : styles.chipPending]}>
+                  <Text style={[styles.chipText, r.feita ? styles.chipTextDone : styles.chipTextPending]}>
+                    {r.feita ? "✓ Feita" : "Pendente"}
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* Hidratação */}
@@ -267,7 +348,7 @@ export default function HomeScreen({ navigation, route }: any) {
 
 
         {/* Orientação do nutricionista (mock) */}
-        <CardOrientacaoNutri />
+        {TEM_NUTRICIONISTA && <CardOrientacaoNutri />}
 
         {/* Consultas recentes */}
         <View style={styles.sectionHeaderRow}>
@@ -300,6 +381,44 @@ export default function HomeScreen({ navigation, route }: any) {
           ))}
         </View>
       </ScrollView>
+
+      {TEM_NUTRICIONISTA && (
+        <DetalheRefeicaoModal
+          refeicao={detalhe}
+          editada={!!(detalhe && edicoes[detalhe.chave])}
+          metaCalorias={metas.calorias}
+          registro={
+            detalhe && registros[detalhe.chave]
+              ? {
+                  kcal: Math.round(totaisDoRegistro(registros[detalhe.chave]).kcal),
+                  // Com foto, o detalhe diz "reconhecido pela foto". Os alimentos estão em `itens`
+                  // (cada um com 100 g ajustados à quantidade); só registros antigos usam a estimativa.
+                  origem: registros[detalhe.chave].fotoUri || (registros[detalhe.chave].itens.length === 0 && registros[detalhe.chave].estimativa) ? "foto" : "itens",
+                  itens: registros[detalhe.chave].itens,
+                  fotoAlimentos: registros[detalhe.chave].itens.length === 0 ? registros[detalhe.chave].estimativa?.alimentos : undefined,
+                  fotoUri: registros[detalhe.chave].fotoUri,
+                }
+              : null
+          }
+          onFechar={() => setChaveAberta(null)}
+          onSalvar={async (chave: string, itens: ItemPlano[]) => setEdicoes(await salvarEdicao(chave, itens))}
+          onRestaurar={async (chave: string) => setEdicoes(await restaurarEdicao(chave))}
+          onRegistrarComoPlano={registrarComoPlano}
+          onAjustar={(chave) => {
+            const pr = planoPorChave[chave];
+            setChaveAberta(null);
+            irParaRefeicao(chave, pr?.itens);
+          }}
+          onFotografar={(chave) => {
+            setChaveAberta(null);
+            irParaRefeicao(chave, undefined, true);
+          }}
+          onVerRegistro={(chave) => {
+            setChaveAberta(null);
+            irParaRefeicao(chave);
+          }}
+        />
+      )}
 
       <ChatNutri contexto={{ calorias: metas.calorias, proteina: metas.proteina, aguaMl: calcularMetaAguaMl(perfil) }} />
 
@@ -431,6 +550,12 @@ const criarStyles = (colors: Cores) => StyleSheet.create({
     alignItems: "center",
     marginTop: 4,
   },
+  planoSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  alimentosPlano: { fontSize: 12, color: colors.textSecondary, marginTop: 3 },
+  botaoPlano: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", marginTop: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: colors.verdeSuave },
+  botaoPlanoTxt: { fontSize: 11, fontWeight: "700", color: colors.primary },
+  deltaMais: { color: "#D6455D", fontWeight: "700" },
+  deltaMenos: { color: colors.primary, fontWeight: "700" },
   sectionLink: { fontSize: 11, color: colors.primary, fontWeight: "600" },
   mealRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
   mealRowDivider: { borderBottomWidth: 1, borderBottomColor: colors.border },

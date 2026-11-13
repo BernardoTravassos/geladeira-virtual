@@ -17,8 +17,9 @@ import { carregarHistorico, DiaResumo, PERIODOS, PeriodoHistorico } from "../uti
 
 const REFEICOES = [
   { chave: "cafe", rotulo: "Café" },
+  { chave: "lanche-manha", rotulo: "Lanche 1" },
   { chave: "almoco", rotulo: "Almoço" },
-  { chave: "lanche", rotulo: "Lanche" },
+  { chave: "lanche-tarde", rotulo: "Lanche 2" },
   { chave: "jantar", rotulo: "Jantar" },
   { chave: "ceia", rotulo: "Ceia" },
 ];

@@ -17,7 +17,7 @@ import { filtrarAlimentos } from "../utils/buscaAlimentos";
 import { adicionarPersonalizado, carregarPersonalizados, ocultarPersonalizado } from "../utils/alimentosPersonalizados";
 import { carregarDia, salvarRefeicao, totaisDoRegistro, ItemPrato, EstimativaSalva } from "../utils/refeicoes";
 import { interpretarNumero, lerNumero } from "../utils/numeros";
-import { analisarPrato, descreverFalhaDeRede, getProfile } from "../services/api";
+import { analisarPrato, AlimentoReconhecido, descreverFalhaDeRede, getProfile } from "../services/api";
 import { calcularMetas, PerfilApi } from "../utils/nutricao";
 import { avaliarRefeicao } from "../utils/avaliacao";
 
@@ -51,13 +51,18 @@ export default function RefeicaoScreen({ navigation, route }: any) {
     };
   }, []);
   const tecladoAberto = alturaTeclado > 0;
-  const { chave, nome, icone, fracaoDaMeta } = route.params as {
+  const { chave, nome, icone, fracaoDaMeta, itensIniciais, abrirCamera } = route.params as {
     chave: string; nome: string; icone: keyof typeof Feather.glyphMap; fracaoDaMeta: number;
+    /** Prato já montado (o plano da nutricionista) para a pessoa só ajustar e salvar. */
+    itensIniciais?: ItemPrato[];
+    /** Abre a câmera assim que a tela aparece (vindo de "Fotografar o prato" no plano). */
+    abrirCamera?: boolean;
   };
 
   const [itens, setItens] = useState<ItemPrato[]>([]);
   const [fotoUri, setFotoUri] = useState<string | undefined>();
-  const [estimativa, setEstimativa] = useState<EstimativaSalva | undefined>();
+  const [estimativa, setEstimativa] = useState<EstimativaSalva | undefined>(); // só registros antigos
+  const [idsDaFoto, setIdsDaFoto] = useState<string[]>([]); // alimentos que vieram do reconhecimento
   const [perfil, setPerfil] = useState<PerfilApi | null>(null);
   const [kcalOutras, setKcalOutras] = useState(0);
   const [analisando, setAnalisando] = useState(false);
@@ -101,9 +106,14 @@ export default function RefeicaoScreen({ navigation, route }: any) {
         setItens(dia[chave].itens);
         setFotoUri(dia[chave].fotoUri);
         setEstimativa(dia[chave].estimativa);
+      } else if (itensIniciais?.length) {
+        setItens(itensIniciais);
+      } else if (abrirCamera) {
+        // Espera a tela terminar de entrar para a câmera não abrir "por cima" da animação.
+        setTimeout(tirarFoto, 450);
       }
     });
-  }, [chave]);
+  }, [chave]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Busca no servidor com atraso (espera a pessoa parar de digitar). O servidor tem milhares
   // de alimentos e produtos de mercado; o catálogo do app é só o ponto de partida.
@@ -176,24 +186,50 @@ export default function RefeicaoScreen({ navigation, route }: any) {
     setFotoUri(undefined);
     setEstimativa(undefined);
     setErroAnalise("");
+    // O que foi reconhecido nesta foto sai do prato junto com ela.
+    setItens((atual) => atual.filter((i) => !idsDaFoto.includes(i.alimentoId) && !i.alimentoId.startsWith("foto-")));
+    setIdsDaFoto([]);
+  }
+
+  /** Um alimento reconhecido vira item do prato: do catálogo, se o nome for igual; senão, com os valores da IA. */
+  function itemDaFoto(a: AlimentoReconhecido, i: number): ItemPrato {
+    const igual = ALIMENTOS.find((x) => normalizar(x.nome) === normalizar(a.nome));
+    if (igual) return { alimentoId: igual.id, gramas: 100 };
+    const id = `foto-${Date.now()}-${i}`;
+    return {
+      alimentoId: id,
+      gramas: 100,
+      personalizado: {
+        id, nome: a.nome, categoria: "pratos", porcaoPadrao: 100,
+        kcal: a.calorias_100g, proteina: a.proteina_100g, carbo: a.carboidratos_100g, gordura: a.gordura_100g,
+        personalizado: true,
+      },
+    };
   }
 
   async function analisar(uri: string) {
     setAnalisando(true);
     setErroAnalise("");
     try {
-      const r = await analisarPrato(uri);
+      const r = await analisarPrato(uri, chave);
       if (!r.eh_comida) {
         setErroAnalise("Não identificamos comida nesta foto. Tente outra ou marque os alimentos abaixo.");
         return;
       }
-      setEstimativa({
-        kcal: r.calorias,
-        proteina: r.proteina_g,
-        carbo: r.carboidratos_g,
-        gordura: r.gordura_g,
-        alimentos: r.alimentos.map((a) => ({ nome: a.nome, gramas: a.gramas_estimadas })),
-        confianca: r.confianca,
+      // Os alimentos reconhecidos entram no prato com 100 g cada: a pessoa ajusta quanto comeu.
+      const novos = r.alimentos.map((a, i) => itemDaFoto(a, i));
+      setEstimativa(undefined);
+      setIdsDaFoto(novos.map((n) => n.alimentoId));
+      setItens((atual) => {
+        const chaves = (l: ItemPrato[]) => JSON.stringify(l.map((i) => [i.alimentoId, i.gramas]));
+        // Veio do plano ("Ajustar o que comi") e a pessoa não mexeu? A foto substitui o prato do plano.
+        // Uma foto nova também substitui o que a foto anterior havia reconhecido.
+        const base =
+          itensIniciais?.length && chaves(atual) === chaves(itensIniciais)
+            ? []
+            : atual.filter((i) => !idsDaFoto.includes(i.alimentoId) && !i.alimentoId.startsWith("foto-"));
+        const jaTem = new Set(base.map((i) => i.alimentoId));
+        return [...base, ...novos.filter((n) => !jaTem.has(n.alimentoId))];
       });
     } catch (e: any) {
       const status = e?.response?.status;
@@ -390,28 +426,31 @@ export default function RefeicaoScreen({ navigation, route }: any) {
             )}
           </View>
         )}
-        {estimativa && !analisando && (
+        {idsDaFoto.length > 0 && !analisando && (
           <View style={styles.estimativa}>
-            <Text style={styles.estimativaTitulo}>Estimativa pela foto</Text>
-            <Text style={styles.estimativaKcal}>≈ {Math.round(estimativa.kcal)} kcal</Text>
-            <Text style={styles.estimativaMacros}>
-              Proteína ≈ {Math.round(estimativa.proteina)} g · Carboidratos ≈ {Math.round(estimativa.carbo)} g · Gordura ≈ {Math.round(estimativa.gordura)} g
+            <Text style={styles.estimativaTitulo}>Reconhecido pela foto</Text>
+            <Text style={styles.estimativaLista}>
+              {idsDaFoto.length} {idsDaFoto.length === 1 ? "alimento" : "alimentos"} no seu prato, calculados em 100 g cada.
+              Toque em um deles para informar quanto você realmente comeu.
             </Text>
-            {estimativa.alimentos.length > 0 && (
-              <Text style={styles.estimativaLista}>
-                Identificado: {estimativa.alimentos.map((a) => `${a.nome} (~${a.gramas} g)`).join(", ")}
-              </Text>
-            )}
             <View style={styles.avisoBox}>
               <Feather name="alert-circle" size={14} color={colors.avisoTexto} />
               <Text style={styles.avisoBoxTxt}>
-                Esta é uma informação aproximada, feita por IA a partir da foto
-                {estimativa.confianca === "baixa" ? " (confiança baixa)" : ""}. Para um valor preciso, selecione os alimentos abaixo e informe as gramas.
+                Reconhecimento feito por IA, com valores aproximados. Confira se os alimentos estão certos.
               </Text>
             </View>
           </View>
         )}
-        {fotoUri && !estimativa && !analisando && erroAnalise === "" && (
+        {estimativa && itens.length === 0 && !analisando && (
+          <View style={styles.estimativa}>
+            <Text style={styles.estimativaTitulo}>Estimativa pela foto (registro antigo)</Text>
+            <Text style={styles.estimativaKcal}>≈ {Math.round(estimativa.kcal)} kcal</Text>
+            <Text style={styles.estimativaMacros}>
+              Proteína ≈ {Math.round(estimativa.proteina)} g · Carboidratos ≈ {Math.round(estimativa.carbo)} g · Gordura ≈ {Math.round(estimativa.gordura)} g
+            </Text>
+          </View>
+        )}
+        {fotoUri && idsDaFoto.length === 0 && !estimativa && !analisando && erroAnalise === "" && (
           <Text style={styles.aviso}>Foto anexada.</Text>
         )}
 
@@ -426,8 +465,37 @@ export default function RefeicaoScreen({ navigation, route }: any) {
           </View>
         )}
 
+        {itens.length > 0 && (
+          <>
+            <Text style={styles.secao}>No seu prato</Text>
+            <View style={styles.card}>
+              {itens.map((it, i) => {
+                const al = alimentoDoItem(it);
+                if (!al) return null;
+                const n = nutrientes(al, it.gramas);
+                return (
+                  <TouchableOpacity
+                    key={it.alimentoId}
+                    onPress={() => abrirGramas(al)}
+                    style={[styles.linha, i < itens.length - 1 && styles.linhaDivisor]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.linhaNome}>{al.nome}</Text>
+                      <Text style={styles.linhaInfo}>
+                        {it.gramas} g
+                        {idsDaFoto.includes(it.alimentoId) || it.alimentoId.startsWith("foto-") ? " · reconhecido pela foto · toque para ajustar" : ""}
+                      </Text>
+                    </View>
+                    <Text style={styles.linhaKcal}>{n.kcal} kcal</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
+
         {/* Seleção manual */}
-        <Text style={styles.secao}>{estimativa ? "Quer um valor preciso? Marque o que comeu" : "Ou marque o que comeu"}</Text>
+        <Text style={styles.secao}>{idsDaFoto.length > 0 ? "Faltou algo? Adicione o que comeu" : "Ou marque o que comeu"}</Text>
         <View style={styles.busca}>
           <Feather name="search" size={16} color={colors.textSecondary} />
           <TextInput
@@ -510,31 +578,6 @@ export default function RefeicaoScreen({ navigation, route }: any) {
           <Text style={styles.dicaBusca}>Segure um alimento seu para removê-lo da lista.</Text>
         )}
 
-        {itens.length > 0 && (
-          <>
-            <Text style={styles.secao}>No seu prato</Text>
-            <View style={styles.card}>
-              {itens.map((it, i) => {
-                const al = alimentoDoItem(it);
-                if (!al) return null;
-                const n = nutrientes(al, it.gramas);
-                return (
-                  <TouchableOpacity
-                    key={it.alimentoId}
-                    onPress={() => abrirGramas(al)}
-                    style={[styles.linha, i < itens.length - 1 && styles.linhaDivisor]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.linhaNome}>{al.nome}</Text>
-                      <Text style={styles.linhaInfo}>{it.gramas} g</Text>
-                    </View>
-                    <Text style={styles.linhaKcal}>{n.kcal} kcal</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </>
-        )}
       </ScrollView>
 
       <View style={[styles.rodape, { bottom: alturaTeclado, paddingBottom: tecladoAberto ? 12 : 28 + insets.bottom }]}>

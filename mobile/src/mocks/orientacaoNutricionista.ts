@@ -6,6 +6,12 @@
  * uma chamada de API. Apagar este arquivo é o único trabalho de limpeza.
  */
 
+/**
+ * A pessoa tem nutricionista vinculada? Enquanto o vínculo real não existe, é uma chave fixa:
+ * true mostra o plano e o card da nutricionista; false deixa o app como quem acompanha sozinho.
+ */
+export const TEM_NUTRICIONISTA = true;
+
 export type OrientacaoRefeicao = {
   chave: string;
   nome: string;

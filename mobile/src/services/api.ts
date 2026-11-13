@@ -224,20 +224,25 @@ export async function redefinirSenha(email: string, codigo: string, novaSenha: s
   await api.post("/auth/reset-password", { email, codigo, novaSenha });
 }
 
+/** Um alimento reconhecido na foto, com os valores POR 100 g dele (a quantidade a pessoa informa depois). */
+export type AlimentoReconhecido = {
+  nome: string;
+  calorias_100g: number;
+  proteina_100g: number;
+  carboidratos_100g: number;
+  gordura_100g: number;
+};
+
 export type EstimativaPrato = {
   eh_comida: boolean;
-  alimentos: { nome: string; gramas_estimadas: number }[];
-  calorias: number;
-  proteina_g: number;
-  carboidratos_g: number;
-  gordura_g: number;
+  alimentos: AlimentoReconhecido[];
   confianca: "baixa" | "media" | "alta";
   aviso: string;
 };
 
 /** Envia a foto do prato e recebe uma ESTIMATIVA nutricional feita por IA. */
-export async function analisarPrato(fotoUri: string): Promise<EstimativaPrato> {
-  if (DEV.SIMULAR_IA_PRATO) return simularAnalisePrato();
+export async function analisarPrato(fotoUri: string, refeicao?: string): Promise<EstimativaPrato> {
+  if (DEV.SIMULAR_IA_PRATO) return simularAnalisePrato(refeicao);
 
   const token = await AsyncStorage.getItem("@geladeira:token");
   const corpo = new FormData();
@@ -252,41 +257,78 @@ export async function analisarPrato(fotoUri: string): Promise<EstimativaPrato> {
 
 // Pratos prontos para a simulação (DEV.SIMULAR_IA_PRATO). Rodam em sequência,
 // para quem testa ver variações em vez de sempre o mesmo resultado.
-const PRATOS_SIMULADOS: Omit<EstimativaPrato, "eh_comida" | "aviso">[] = [
+const al = (nome: string, kcal: number, p: number, c: number, g: number): AlimentoReconhecido =>
+  ({ nome, calorias_100g: kcal, proteina_100g: p, carboidratos_100g: c, gordura_100g: g });
+
+const PRATOS_SIMULADOS: { alimentos: AlimentoReconhecido[]; confianca: EstimativaPrato["confianca"] }[] = [
   {
     alimentos: [
-      { nome: "Arroz branco", gramas_estimadas: 120 },
-      { nome: "Feijão", gramas_estimadas: 100 },
-      { nome: "Frango grelhado", gramas_estimadas: 110 },
-      { nome: "Salada de alface e tomate", gramas_estimadas: 60 },
+      al("Arroz branco", 128, 2.5, 28, 0.2),
+      al("Feijão", 76, 4.8, 14, 0.5),
+      al("Frango grelhado", 159, 32, 0, 2.5),
+      al("Salada de alface e tomate", 17, 1.1, 3.4, 0.2),
     ],
-    calorias: 520, proteina_g: 42, carboidratos_g: 58, gordura_g: 12, confianca: "media",
+    confianca: "media",
   },
   {
     alimentos: [
-      { nome: "Macarrão ao molho", gramas_estimadas: 220 },
-      { nome: "Carne moída", gramas_estimadas: 80 },
+      al("Strogonoff de frango", 170, 12, 6, 10.5),
+      al("Arroz branco", 128, 2.5, 28, 0.2),
+      al("Batata palha", 545, 5, 55, 35),
     ],
-    calorias: 610, proteina_g: 28, carboidratos_g: 78, gordura_g: 19, confianca: "baixa",
+    confianca: "media",
   },
   {
-    alimentos: [
-      { nome: "Pão francês", gramas_estimadas: 50 },
-      { nome: "Ovo mexido", gramas_estimadas: 100 },
-      { nome: "Mamão", gramas_estimadas: 150 },
-    ],
-    calorias: 390, proteina_g: 19, carboidratos_g: 48, gordura_g: 13, confianca: "alta",
+    alimentos: [al("Macarrão ao molho", 150, 5, 29, 1.5), al("Carne moída", 250, 24, 0, 16)],
+    confianca: "baixa",
+  },
+  {
+    alimentos: [al("Pão francês", 300, 8, 58, 3.1), al("Ovo mexido", 165, 11, 2, 12), al("Mamão", 40, 0.5, 10, 0.1)],
+    confianca: "alta",
   },
 ];
+// Na simulação, cada refeição "reconhece" um prato DIFERENTE do plano da nutricionista, para dar
+// para ver os cards do plano sendo substituídos pelos da foto. Qualquer foto serve.
+const PRATO_POR_REFEICAO: Record<string, { alimentos: AlimentoReconhecido[]; confianca: EstimativaPrato["confianca"] }> = {
+  cafe: {
+    alimentos: [al("Tapioca com queijo", 220, 8, 33, 6), al("Suco de laranja", 45, 0.7, 10, 0.2), al("Café com leite", 40, 2, 4, 1.5)],
+    confianca: "media",
+  },
+  "lanche-manha": {
+    alimentos: [al("Barra de cereal", 390, 5, 70, 9), al("Banana", 89, 1.3, 23, 0.1)],
+    confianca: "alta",
+  },
+  almoco: {
+    alimentos: [
+      al("Strogonoff de frango", 170, 12, 6, 10.5),
+      al("Arroz branco", 128, 2.5, 28, 0.2),
+      al("Batata palha", 545, 5, 55, 35),
+    ],
+    confianca: "media",
+  },
+  "lanche-tarde": {
+    alimentos: [al("Pão de queijo", 363, 5, 38, 21), al("Café com leite", 40, 2, 4, 1.5)],
+    confianca: "alta",
+  },
+  jantar: {
+    alimentos: [al("Pizza de mussarela", 270, 12, 33, 10), al("Refrigerante", 42, 0, 10.6, 0)],
+    confianca: "media",
+  },
+  ceia: {
+    alimentos: [al("Sorvete de creme", 207, 3.5, 24, 11)],
+    confianca: "baixa",
+  },
+};
 let proximoPratoSimulado = 0;
 
-async function simularAnalisePrato(): Promise<EstimativaPrato> {
+async function simularAnalisePrato(refeicao?: string): Promise<EstimativaPrato> {
   await new Promise((r) => setTimeout(r, 1800)); // parece uma análise de verdade
-  const prato = PRATOS_SIMULADOS[proximoPratoSimulado++ % PRATOS_SIMULADOS.length];
+  const prato = (refeicao && PRATO_POR_REFEICAO[refeicao]) || PRATOS_SIMULADOS[proximoPratoSimulado++ % PRATOS_SIMULADOS.length];
   return {
     eh_comida: true,
-    ...prato,
-    aviso: "Estimativa aproximada feita por IA a partir da foto.",
+    alimentos: prato.alimentos,
+    confianca: prato.confianca,
+    aviso: "Alimentos reconhecidos por IA a partir da foto, com valores aproximados por 100 g.",
   };
 }
 

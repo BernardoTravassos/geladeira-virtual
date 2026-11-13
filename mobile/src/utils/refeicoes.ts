@@ -16,7 +16,8 @@ export type EstimativaSalva = {
   proteina: number;
   carbo: number;
   gordura: number;
-  alimentos: { nome: string; gramas: number }[];
+  /** Cada alimento reconhecido; calorias e macros por alimento existem nas fotos novas. */
+  alimentos: { nome: string; gramas: number; kcal?: number; proteina?: number; carbo?: number; gordura?: number }[];
   confianca: "baixa" | "media" | "alta";
 };
 
@@ -36,10 +37,22 @@ const chaveDoDia = (d = new Date()) => {
   return `@geladeira:refeicoes:${d.getFullYear()}-${mm}-${dd}`;
 };
 
+/**
+ * Antes existia um "Lanche" só; hoje são dois (manhã e tarde). Registros antigos com a
+ * chave "lanche" passam a valer como lanche da tarde, e a troca é gravada no próximo salvamento.
+ */
+export function migrarChaves(dia: RegistroDoDia): RegistroDoDia {
+  if (dia["lanche"]) {
+    if (!dia["lanche-tarde"]) dia["lanche-tarde"] = dia["lanche"];
+    delete dia["lanche"];
+  }
+  return dia;
+}
+
 export async function carregarDia(): Promise<RegistroDoDia> {
   try {
     const bruto = await AsyncStorage.getItem(chaveDoDia());
-    return bruto ? JSON.parse(bruto) : {};
+    return bruto ? migrarChaves(JSON.parse(bruto)) : {};
   } catch {
     return {};
   }
@@ -79,4 +92,15 @@ export function totaisDoRegistro(reg: Pick<RegistroRefeicao, "itens" | "estimati
     return { kcal: e.kcal, proteina: e.proteina, carbo: e.carbo, gordura: e.gordura };
   }
   return totais(reg.itens);
+}
+
+/** Nomes do que foi comido, para resumir uma refeição registrada ("Arroz, Feijão, Picanha"). */
+export function nomesDoRegistro(reg: Pick<RegistroRefeicao, "itens" | "estimativa">): string {
+  if (reg.itens.length > 0) {
+    return reg.itens
+      .map((i) => alimentoDoItem(i)?.nome.split(",")[0].trim() ?? "")
+      .filter(Boolean)
+      .join(", ");
+  }
+  return (reg.estimativa?.alimentos ?? []).map((a) => a.nome).join(", ");
 }
