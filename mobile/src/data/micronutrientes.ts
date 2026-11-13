@@ -1,7 +1,6 @@
-// Vitaminas e minerais dos alimentos usados no plano da nutricionista.
-// Valores APROXIMADOS por 100 g do alimento já preparado, a partir de memória
-// das tabelas TACO e USDA (arredondados). São estimativa, não laudo: variedade,
-// maturação e preparo mudam os números. Revisão por nutricionista recomendada.
+// Vitaminas e minerais por 100 g. A lista abaixo é só o ponto de partida (emoji); os valores vêm
+// do catálogo conferido na TACO/USDA (catalogoVerificado.json) ou do servidor, e os substituem.
+// Variedade, maturação e preparo mudam os números.
 //
 // `vd` é o valor diário de referência de um adulto (rotulagem da Anvisa).
 export type Micro =
@@ -58,6 +57,11 @@ export const INFO_ALIMENTO: Record<string, { emoji: string; micros: Partial<Reco
   leite: { emoji: "🥛", micros: { calcio: 120, b12: 0.5, b2: 0.2, fosforo: 90 } },
   azeite: { emoji: "🫒", micros: { vitE: 14, vitK: 60 } },
 };
+
+/** Troca os micronutrientes de um alimento pelos conferidos, mantendo o emoji (vazio se a fonte não traz). */
+export function substituirMicros(id: string, micros: Record<string, number>) {
+  INFO_ALIMENTO[id] = { emoji: INFO_ALIMENTO[id]?.emoji ?? "", micros: micros as Partial<Record<Micro, number>> };
+}
 
 /** Guarda emoji e vitaminas/minerais vindos do servidor, para qualquer alimento do banco. */
 export function registrarInfoDoServidor(id: string, emoji: string | null | undefined, micros: Record<string, number> | null | undefined) {

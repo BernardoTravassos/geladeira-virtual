@@ -44,7 +44,7 @@ public static class SementeAlimentos
     public static async Task<(int alimentos, int micros)> Executar(GeladeiraContext banco)
     {
         // O catálogo curado traz as definições de vitaminas; os demais arquivos só trazem alimentos.
-        var arquivos = new[] { "alimentos.json", "taco.json" }
+        var arquivos = new[] { "alimentos.json", "taco.json", "tipicos.json" }
             .Select(nome => Path.Combine(AppContext.BaseDirectory, "Dados", "Sementes", nome))
             .Where(File.Exists)
             .Select(c => JsonSerializer.Deserialize<Arquivo>(File.ReadAllText(c), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })

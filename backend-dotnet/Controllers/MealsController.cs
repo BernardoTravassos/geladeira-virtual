@@ -12,7 +12,7 @@ public sealed class MealsController(IServicoAnaliseRefeicao analise) : Controlle
 {
     private const long TamanhoMaximo = 5 * 1024 * 1024; // 5 MB
 
-    /// <summary>Recebe a foto de um prato (multipart, campo "photo") e devolve uma estimativa.</summary>
+    /// <summary>Recebe a foto de um prato (multipart, campo "photo") e devolve os alimentos reconhecidos, por 100 g.</summary>
     [HttpPost("analyze")]
     [EnableRateLimiting("analise")]
     [RequestSizeLimit(TamanhoMaximo + 64 * 1024)]
@@ -48,13 +48,17 @@ public sealed class MealsController(IServicoAnaliseRefeicao analise) : Controlle
             return Ok(new
             {
                 eh_comida = r.EhComida,
-                alimentos = r.Alimentos.Select(a => new { nome = a.Nome, gramas_estimadas = a.GramasEstimadas }),
-                calorias = r.Calorias,
-                proteina_g = r.ProteinaG,
-                carboidratos_g = r.CarboidratosG,
-                gordura_g = r.GordurasG,
+                // Valores POR 100 g de cada alimento; a pessoa informa depois quanto comeu.
+                alimentos = r.Alimentos.Select(a => new
+                {
+                    nome = a.Nome,
+                    calorias_100g = a.Calorias100g,
+                    proteina_100g = a.Proteina100g,
+                    carboidratos_100g = a.Carboidratos100g,
+                    gordura_100g = a.Gordura100g,
+                }),
                 confianca = r.Confianca,
-                aviso = "Estimativa aproximada feita por IA a partir da foto. Para valores precisos, selecione os alimentos e informe as gramas.",
+                aviso = "Alimentos reconhecidos por IA a partir da foto, com valores aproximados por 100 g. Informe a quantidade que você realmente comeu.",
             });
         }
         catch (IaIndisponivelException ex)
