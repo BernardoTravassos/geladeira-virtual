@@ -112,6 +112,46 @@ public sealed class NutricionistaController(GeladeiraContext banco) : Controller
         }));
     }
 
+    private Task<bool> VinculoAtivoCom(Guid pacienteId) =>
+        banco.Vinculos.AnyAsync(v => v.NutricionistaId == UsuarioId && v.PacienteId == pacienteId && v.Status == "ativo");
+
+    /// <summary>O plano que este nutricionista prescreveu ao paciente (conteudo nulo se ainda não há).</summary>
+    [HttpGet("patients/{pacienteId:guid}/plan")]
+    public async Task<IActionResult> PlanoDoPaciente(Guid pacienteId)
+    {
+        if (!await EhNutricionista()) return Forbid();
+        if (!await VinculoAtivoCom(pacienteId)) return NotFound(new { error = "Paciente não encontrado." });
+
+        var plano = await banco.Planos.AsNoTracking()
+            .SingleOrDefaultAsync(p => p.PacienteId == pacienteId && p.NutricionistaId == UsuarioId);
+        return Ok(new { conteudo = plano?.Conteudo, atualizadoEm = plano?.AtualizadoEm });
+    }
+
+    /// <summary>Grava (substitui) o plano do paciente. Corpo: {"conteudo": "<json do app>"}.</summary>
+    [HttpPut("patients/{pacienteId:guid}/plan")]
+    public async Task<IActionResult> GravarPlano(Guid pacienteId, [FromBody] GravarPlanoRequest req)
+    {
+        if (!await EhNutricionista()) return Forbid();
+        if (!await VinculoAtivoCom(pacienteId)) return NotFound(new { error = "Paciente não encontrado." });
+
+        if (string.IsNullOrWhiteSpace(req.Conteudo) || req.Conteudo.Length > 64 * 1024)
+            return BadRequest(new { error = "Plano ausente ou grande demais." });
+        try { System.Text.Json.JsonDocument.Parse(req.Conteudo).Dispose(); }
+        catch (System.Text.Json.JsonException) { return BadRequest(new { error = "Plano não é um JSON válido." }); }
+
+        var plano = await banco.Planos.SingleOrDefaultAsync(p => p.PacienteId == pacienteId);
+        if (plano is null)
+        {
+            plano = new PlanoPaciente { PacienteId = pacienteId };
+            banco.Planos.Add(plano);
+        }
+        plano.NutricionistaId = UsuarioId;
+        plano.Conteudo = req.Conteudo;
+        plano.AtualizadoEm = Relogio.Agora;
+        await banco.SaveChangesAsync();
+        return NoContent();
+    }
+
     /// <summary>Cancela um convite pendente ou encerra o acompanhamento de um paciente.</summary>
     [HttpDelete("links/{id:guid}")]
     public async Task<IActionResult> Encerrar(Guid id)
@@ -178,7 +218,17 @@ public sealed class VinculosController(GeladeiraContext banco) : ControllerBase
         var itens = await banco.Vinculos.AsNoTracking()
             .Where(v => v.PacienteId == UsuarioId && v.Status == "ativo")
             .Join(banco.Nutricionistas, v => v.NutricionistaId, n => n.UsuarioId,
-                (v, n) => new { vinculoId = v.Id, v.AceitoEm, nutricionista = new { n.Nome, n.Crn } })
+                (v, n) => new
+                {
+                    vinculoId = v.Id,
+                    v.AceitoEm,
+                    nutricionista = new { n.Nome, n.Crn },
+                    // Só vale o plano escrito por quem acompanha a pessoa agora.
+                    plano = banco.Planos
+                        .Where(p => p.PacienteId == v.PacienteId && p.NutricionistaId == v.NutricionistaId)
+                        .Select(p => new { p.Conteudo, p.AtualizadoEm })
+                        .FirstOrDefault(),
+                })
             .ToListAsync();
         return Ok(itens);
     }
@@ -202,4 +252,9 @@ public sealed class AceitarConviteRequest
     [System.ComponentModel.DataAnnotations.Required]
     [System.ComponentModel.DataAnnotations.MaxLength(12)]
     public string? Codigo { get; set; }
+}
+
+public sealed class GravarPlanoRequest
+{
+    public string? Conteudo { get; set; }
 }

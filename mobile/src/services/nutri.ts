@@ -39,7 +39,7 @@ export async function guardarSessao(token: string, papel: Papel) {
 }
 
 export async function encerrarSessao() {
-  await AsyncStorage.multiRemove(["@geladeira:token", "@geladeira:wizardDone", CHAVE_PAPEL]);
+  await AsyncStorage.multiRemove(["@geladeira:token", "@geladeira:wizardDone", CHAVE_PAPEL, "@geladeira:vinculoNutri"]);
 }
 
 // ───────────────────────────── lado do nutricionista ─────────────────────────────
@@ -80,6 +80,16 @@ export async function encerrarVinculoComoNutri(vinculoId: string) {
   await api.delete(`/nutritionist/links/${vinculoId}`, await auth());
 }
 
+/** Plano que o nutricionista prescreveu ao paciente: o JSON bruto, ou null se ainda não há. */
+export async function planoDoPaciente(pacienteId: string): Promise<string | null> {
+  const { data } = await api.get(`/nutritionist/patients/${pacienteId}/plan`, await auth());
+  return data.conteudo ?? null;
+}
+
+export async function gravarPlanoDoPaciente(pacienteId: string, conteudo: string) {
+  await api.put(`/nutritionist/patients/${pacienteId}/plan`, { conteudo }, await auth());
+}
+
 export type LinhaDiario = { tipo: "refeicoes" | "agua" | "treinos"; data: string; conteudo: string };
 
 export async function diarioDoPaciente(pacienteId: string): Promise<LinhaDiario[]> {
@@ -89,7 +99,13 @@ export async function diarioDoPaciente(pacienteId: string): Promise<LinhaDiario[
 
 // ───────────────────────────── lado do paciente ─────────────────────────────
 
-export type MeuNutricionista = { vinculoId: string; aceitoEm: string; nutricionista: { nome: string; crn: string } };
+export type MeuNutricionista = {
+  vinculoId: string;
+  aceitoEm: string;
+  nutricionista: { nome: string; crn: string };
+  /** Plano prescrito por este nutricionista (JSON de utils/planoNutri.ts), ou null se ainda não há. */
+  plano?: { conteudo: string; atualizadoEm: string } | null;
+};
 
 export async function meusNutricionistas(): Promise<MeuNutricionista[]> {
   const { data } = await api.get("/links", await auth());

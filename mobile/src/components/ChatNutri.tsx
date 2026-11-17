@@ -68,7 +68,7 @@ const CONTEXTO_PADRAO: ContextoAssistente = {
   aguaMl: ORIENTACAO_NUTRICIONISTA.metas.aguaMl,
 };
 
-export default function ChatNutri({ contexto = CONTEXTO_PADRAO }: { contexto?: ContextoAssistente }) {
+export default function ChatNutri({ contexto = CONTEXTO_PADRAO, nutricionista }: { contexto?: ContextoAssistente; nutricionista?: { nome: string; crn: string } }) {
   const colors = useCores();
   const styles = useMemo(() => criarStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
@@ -224,7 +224,9 @@ export default function ChatNutri({ contexto = CONTEXTO_PADRAO }: { contexto?: C
     rolarAoFim();
   }
 
-  const n = ORIENTACAO_NUTRICIONISTA.nutricionista;
+  const n = nutricionista
+    ? { nome: nutricionista.nome, crn: nutricionista.crn, iniciais: nutricionista.nome.replace(/^(Dra?\.?)\s+/i, "").split(" ").filter(Boolean).slice(0, 2).map((x) => x[0].toUpperCase()).join("") }
+    : ORIENTACAO_NUTRICIONISTA.nutricionista;
 
   return (
     <>

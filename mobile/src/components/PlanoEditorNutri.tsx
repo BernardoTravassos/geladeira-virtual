@@ -1,16 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Animated, Easing, FlatList, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, StyleSheet,
+  Animated, Easing, FlatList, Alert, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useCores } from "../theme/tema";
 import type { Cores } from "../theme/colors";
 import { sombra } from "../theme/colors";
-import { ORIENTACAO_NUTRICIONISTA as base } from "../mocks/orientacaoNutricionista";
 import { ALIMENTOS, palavrasDaBusca } from "../data/alimentos";
 import { filtrarAlimentos } from "../utils/buscaAlimentos";
-import { aplicarEdicoes, carregarEdicoes, restaurarEdicao, salvarEdicao, type Edicoes } from "../utils/planoNutri";
+import { aplicarEdicoes, carregarPrescricao, gravarPrescricao, MODELO_REFEICOES, type Edicoes } from "../utils/planoNutri";
 import { detalharItem, detalharRefeicao, type ItemPlano } from "../utils/refeicaoDetalhe";
 
 type Props = {
@@ -27,38 +26,65 @@ const COR_REFEICAO: Record<string, string> = {
 /**
  * Editor do plano de refeições feito pelo nutricionista: ele escolhe, para cada refeição, os alimentos e as
  * quantidades que o paciente vai ver na Home dele em "Indicação do seu nutricionista".
- * Cada mudança é gravada na hora. Para o paciente "1" (quem usa este aparelho) ela já aparece na Home.
+ * Cada mudança é gravada na hora, no servidor (a Home do paciente a lê de lá). Só as refeições que
+ * o nutricionista preencher chegam ao paciente.
  */
 export default function PlanoEditorNutri({ pacienteId, pacienteNome, aoSalvar }: Props) {
   const colors = useCores();
   const styles = useMemo(() => criarStyles(colors), [colors]);
   const [edicoes, setEdicoes] = useState<Edicoes>({});
+  const [carregado, setCarregado] = useState(false);
+  const [erroCarga, setErroCarga] = useState(false);
   const [aberta, setAberta] = useState<string | null>("almoco");
   const [adicionandoEm, setAdicionandoEm] = useState<string | null>(null);
+  // Sempre o estado mais recente: toques seguidos (+10 g, +10 g) não podem partir de um plano velho.
+  const atual = useRef<Edicoes>({});
 
   useEffect(() => {
-    carregarEdicoes(pacienteId).then(setEdicoes);
+    let vivo = true;
+    carregarPrescricao(pacienteId)
+      .then((e) => { if (vivo) { atual.current = e; setEdicoes(e); setCarregado(true); } })
+      .catch(() => { if (vivo) setErroCarga(true); });
+    return () => { vivo = false; };
   }, [pacienteId]);
 
-  const plano = useMemo(() => aplicarEdicoes(base.refeicoes, edicoes), [edicoes]);
+  const plano = useMemo(() => aplicarEdicoes(MODELO_REFEICOES, edicoes), [edicoes]);
   const primeiroNome = pacienteNome.split(" ")[0];
 
-  async function gravar(chave: string, itens: ItemPlano[], msg: string) {
+  /** Aplica na tela na hora e envia ao servidor; se falhar, volta ao que o servidor tem. */
+  async function enviar(proximo: Edicoes, msg: string) {
     LayoutAnimation.configureNext(LayoutAnimation.create(200, "easeInEaseOut", "opacity"));
-    setEdicoes(await salvarEdicao(chave, itens, pacienteId));
-    aoSalvar?.(msg);
+    atual.current = proximo;
+    setEdicoes(proximo);
+    try {
+      await gravarPrescricao(pacienteId, proximo);
+      aoSalvar?.(msg);
+    } catch {
+      Alert.alert("Não foi possível salvar", "O plano não foi enviado. Confira a conexão e tente de novo.");
+      try { const e = await carregarPrescricao(pacienteId); atual.current = e; setEdicoes(e); } catch {}
+    }
   }
+
+  const gravar = (chave: string, itens: ItemPlano[], msg: string) => enviar({ ...atual.current, [chave]: itens }, msg);
+  const limpar = (chave: string, msg: string) => {
+    const { [chave]: _x, ...resto } = atual.current;
+    return enviar(resto, msg);
+  };
 
   const trocarGramas = (chave: string, itens: ItemPlano[], i: number, delta: number) =>
     gravar(chave, itens.map((it, j) => (j === i ? { ...it, gramas: Math.max(5, it.gramas + delta), medida: undefined } : it)), "Quantidade atualizada");
   const remover = (chave: string, itens: ItemPlano[], i: number) => gravar(chave, itens.filter((_, j) => j !== i), "Alimento removido");
+
+  if (!carregado) {
+    return <Text style={styles.avisoTxt}>{erroCarga ? "Não foi possível carregar o plano. Volte e tente de novo." : "Carregando o plano…"}</Text>;
+  }
 
   return (
     <View style={{ gap: 12 }}>
       <View style={styles.aviso}>
         <Feather name="send" size={15} color={colors.primary} />
         <Text style={styles.avisoTxt}>
-          O que você definir aqui aparece para {primeiroNome} em <Text style={{ fontWeight: "800" }}>Indicação do seu nutricionista</Text>, em cada refeição. Ela pode ajustar tirando uma foto do que comeu de verdade.
+          O que você definir aqui aparece para {primeiroNome} em <Text style={{ fontWeight: "800" }}>Indicação do seu nutricionista</Text>, em cada refeição. Refeições sem alimentos não aparecem para ela. Ela ainda pode ajustar tirando uma foto do que comeu.
         </Text>
       </View>
 
@@ -88,7 +114,7 @@ export default function PlanoEditorNutri({ pacienteId, pacienteNome, aoSalvar }:
               </View>
               {editada && (
                 <View style={styles.etiqueta}>
-                  <Text style={styles.etiquetaTxt}>personalizado</Text>
+                  <Text style={styles.etiquetaTxt}>no plano</Text>
                 </View>
               )}
               <Feather name={aberto ? "chevron-up" : "chevron-down"} size={18} color={colors.textSecondary} />
@@ -135,12 +161,11 @@ export default function PlanoEditorNutri({ pacienteId, pacienteNome, aoSalvar }:
                       style={styles.restaurar}
                       onPress={async () => {
                         LayoutAnimation.configureNext(LayoutAnimation.create(200, "easeInEaseOut", "opacity"));
-                        setEdicoes(await restaurarEdicao(r.chave, pacienteId));
-                        aoSalvar?.("Plano padrão restaurado");
+                        limpar(r.chave, "Refeição removida do plano");
                       }}
                     >
                       <Feather name="rotate-ccw" size={14} color={colors.textSecondary} />
-                      <Text style={styles.restaurarTxt}>Padrão</Text>
+                      <Text style={styles.restaurarTxt}>Limpar</Text>
                     </TouchableOpacity>
                   )}
                 </View>

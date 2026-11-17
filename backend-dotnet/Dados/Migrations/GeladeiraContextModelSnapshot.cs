@@ -400,6 +400,32 @@ namespace GeladeiraVirtual.Api.Dados.Migrations
                     b.ToTable("perfis", (string)null);
                 });
 
+            modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.PlanoPaciente", b =>
+                {
+                    b.Property<Guid>("PacienteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("paciente_id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("atualizado_em")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Conteudo")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("conteudo");
+
+                    b.Property<Guid>("NutricionistaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("nutricionista_id");
+
+                    b.HasKey("PacienteId");
+
+                    b.ToTable("planos_paciente", (string)null);
+                });
+
             modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.RegistroDia", b =>
                 {
                     b.Property<Guid>("Id")
@@ -629,6 +655,17 @@ namespace GeladeiraVirtual.Api.Dados.Migrations
                         .HasConstraintName("perfis_usuario_id_fkey");
 
                     b.Navigation("Usuario");
+                });
+
+            modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.PlanoPaciente", b =>
+                {
+                    b.HasOne("GeladeiraVirtual.Api.Dados.Entidades.Usuario", "Paciente")
+                        .WithMany()
+                        .HasForeignKey("PacienteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Paciente");
                 });
 
             modelBuilder.Entity("GeladeiraVirtual.Api.Dados.Entidades.RegistroDia", b =>

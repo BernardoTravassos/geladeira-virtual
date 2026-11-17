@@ -22,11 +22,10 @@ import PaywallCard from "../components/PaywallCard";
 import CardAgua from "../components/CardAgua";
 import { reagendarLembretes } from "../utils/lembretes";
 import { DEV } from "../config/dev";
-import CardOrientacaoNutri from "../components/CardOrientacaoNutri";
 import ChatNutri from "../components/ChatNutri";
 import DetalheRefeicaoModal from "../components/DetalheRefeicaoModal";
-import { ORIENTACAO_NUTRICIONISTA, TEM_NUTRICIONISTA } from "../mocks/orientacaoNutricionista";
-import { aplicarEdicoes, carregarEdicoes, descreverItens, Edicoes, restaurarEdicao, salvarEdicao } from "../utils/planoNutri";
+import { aplicarEdicoes, carregarEdicoes, descreverItens, Edicoes, lerVinculoCache, montarPlano, restaurarEdicao, salvarEdicao, sincronizarVinculo, type VinculoNutri } from "../utils/planoNutri";
+import { encerrarSessao } from "../services/nutri";
 import { detalharRefeicao, ItemPlano } from "../utils/refeicaoDetalhe";
 import { useChaveDoDia } from "../utils/dia";
 import { RECEITAS } from "../mocks/receitas";
@@ -82,6 +81,7 @@ export default function HomeScreen({ navigation, route }: any) {
   const [registros, setRegistros] = useState<RegistroDoDia>({});
   const [edicoes, setEdicoes] = useState<Edicoes>({});
   const [chaveAberta, setChaveAberta] = useState<string | null>(null);
+  const [vinculo, setVinculo] = useState<VinculoNutri | null>(null);
 
   // Recarrega ao voltar da tela da refeição, para o card já aparecer como "Feita".
   // Ao virar o dia (00h) a chave muda e as refeições de hoje recomeçam zeradas.
@@ -90,6 +90,9 @@ export default function HomeScreen({ navigation, route }: any) {
     useCallback(() => {
       carregarDia().then(setRegistros);
       carregarEdicoes().then(setEdicoes);
+      // Mostra na hora o que já se sabe do nutricionista e confere com o servidor em seguida.
+      lerVinculoCache().then((v) => setVinculo(v));
+      sincronizarVinculo().then((v) => setVinculo(v));
       reagendarLembretes(); // o plano de avisos acompanha o que a pessoa já fez hoje
     }, [chaveDoDia]),
   );
@@ -140,14 +143,14 @@ export default function HomeScreen({ navigation, route }: any) {
   }
 
   async function handleLogout() {
-    await AsyncStorage.multiRemove(["@geladeira:token", "@geladeira:wizardDone"]);
+    await encerrarSessao();
     navigation.replace("Login");
   }
 
-  // O plano da nutricionista (com as alterações da pessoa), por refeição. Sem nutricionista, vazio.
+  // O plano do nutricionista (com os ajustes da pessoa), por refeição. Sem nutricionista, vazio.
   const plano = useMemo(
-    () => (TEM_NUTRICIONISTA ? aplicarEdicoes(ORIENTACAO_NUTRICIONISTA.refeicoes, edicoes) : []),
-    [edicoes],
+    () => (vinculo ? aplicarEdicoes(montarPlano(vinculo.prescricao), edicoes) : []),
+    [vinculo, edicoes],
   );
   const planoPorChave = useMemo(() => Object.fromEntries(plano.map((r) => [r.chave, r])), [plano]);
   const detalhe = plano.find((r) => r.chave === chaveAberta) ?? null;
@@ -284,7 +287,7 @@ export default function HomeScreen({ navigation, route }: any) {
         {/* Refeições do dia: o que comer (plano) e o que já foi comido (registro), numa lista só */}
         <View>
           <Text style={styles.sectionTitle}>Refeições do dia</Text>
-          {TEM_NUTRICIONISTA && <Text style={styles.planoSub}>Seguindo o plano de {ORIENTACAO_NUTRICIONISTA.nutricionista.nome}</Text>}
+          {vinculo && plano.length > 0 && <Text style={styles.planoSub}>Seguindo o plano de {vinculo.nutricionista.nome}</Text>}
         </View>
         <View style={styles.card}>
           {refeicoesDoDia.map((r, i) => {
@@ -350,7 +353,6 @@ export default function HomeScreen({ navigation, route }: any) {
 
 
         {/* Orientação do nutricionista (mock) */}
-        {TEM_NUTRICIONISTA && <CardOrientacaoNutri />}
 
         {/* Consultas recentes */}
         <View style={styles.sectionHeaderRow}>
@@ -384,7 +386,7 @@ export default function HomeScreen({ navigation, route }: any) {
         </View>
       </ScrollView>
 
-      {TEM_NUTRICIONISTA && (
+      {vinculo && (
         <DetalheRefeicaoModal
           refeicao={detalhe}
           editada={!!(detalhe && edicoes[detalhe.chave])}
@@ -422,7 +424,7 @@ export default function HomeScreen({ navigation, route }: any) {
         />
       )}
 
-      <ChatNutri contexto={{ calorias: metas.calorias, proteina: metas.proteina, aguaMl: calcularMetaAguaMl(perfil) }} />
+      <ChatNutri nutricionista={vinculo?.nutricionista} contexto={{ calorias: metas.calorias, proteina: metas.proteina, aguaMl: calcularMetaAguaMl(perfil) }} />
 
       <BarraInferior ativa="Home" onCamera={handleGerarCardapio} />
 

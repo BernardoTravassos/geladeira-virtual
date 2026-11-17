@@ -1,6 +1,6 @@
 import { Alert, Linking, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ORIENTACAO_NUTRICIONISTA as plano, TEM_NUTRICIONISTA } from "../mocks/orientacaoNutricionista";
+import { lerVinculoCache, MODELO_REFEICOES } from "./planoNutri";
 import { chaveData } from "./dia";
 
 /**
@@ -217,14 +217,15 @@ async function montarPlano() {
     }
 
     if (prefs.refeicoes.ativo) {
-      for (const r of plano.refeicoes) {
+      const temNutri = !!(await lerVinculoCache());
+      for (const r of MODELO_REFEICOES) {
         if (ehHoje && refeicoesHoje[r.chave]) continue; // já registrou: sem lembrete
         const [h, mi] = r.horario.split(":").map(Number);
         const quando = aDate(dia, h * 60 + mi);
         if (quando <= agora) continue;
         lista.push({
           titulo: `Hora do ${r.nome.toLowerCase()} 🍽️`,
-          corpo: TEM_NUTRICIONISTA ? "Veja a indicação do seu nutricionista e registre o que comeu." : "Registre o que você comeu para acompanhar o seu dia.",
+          corpo: temNutri ? "Veja a indicação do seu nutricionista e registre o que comeu." : "Registre o que você comeu para acompanhar o seu dia.",
           quando,
         });
       }

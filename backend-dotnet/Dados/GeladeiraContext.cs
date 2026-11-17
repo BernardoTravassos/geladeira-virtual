@@ -34,6 +34,8 @@ public partial class GeladeiraContext : DbContext
 
     public virtual DbSet<Vinculo> Vinculos { get; set; }
 
+    public virtual DbSet<PlanoPaciente> Planos { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Assinatura>(entity =>
@@ -301,6 +303,17 @@ public partial class GeladeiraContext : DbContext
             e.HasIndex(x => x.NutricionistaId).HasDatabaseName("ix_vinculos_nutricionista_id");
             e.HasIndex(x => x.PacienteId).HasDatabaseName("ix_vinculos_paciente_id");
             e.HasOne(x => x.Nutricionista).WithMany().HasForeignKey(x => x.NutricionistaId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Paciente).WithMany().HasForeignKey(x => x.PacienteId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PlanoPaciente>(e =>
+        {
+            e.ToTable("planos_paciente");
+            e.HasKey(x => x.PacienteId);
+            e.Property(x => x.PacienteId).HasColumnName("paciente_id");
+            e.Property(x => x.NutricionistaId).HasColumnName("nutricionista_id");
+            e.Property(x => x.Conteudo).HasColumnName("conteudo");
+            e.Property(x => x.AtualizadoEm).HasColumnName("atualizado_em").HasColumnType("timestamp without time zone").HasDefaultValueSql("now()");
             e.HasOne(x => x.Paciente).WithMany().HasForeignKey(x => x.PacienteId).OnDelete(DeleteBehavior.Cascade);
         });
 
