@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View } from "react-native";
+import { AppState, View } from "react-native";
 import { DarkTheme, DefaultTheme, NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
 import { TemaProvider, useTema } from "./src/theme/tema";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -17,23 +17,29 @@ import HistoricoScreen from "./src/screens/HistoricoScreen";
 import PerfilScreen from "./src/screens/PerfilScreen";
 import ReceitaScreen from "./src/screens/ReceitaScreen";
 import SmartwatchScreen from "./src/screens/SmartwatchScreen";
+import LembretesScreen from "./src/screens/LembretesScreen";
 import TreinoScreen from "./src/screens/TreinoScreen";
 import ReceitasScreen from "./src/screens/ReceitasScreen";
 import TransicaoLogo, { TransicaoLogoRef } from "./src/components/TransicaoLogo";
 import { FeedbackProvider } from "./src/components/Feedback";
+import { CHAVE_PAPEL } from "./src/services/nutri";
 import { sincronizar } from "./src/utils/sincronizacao";
 import { sincronizarCatalogo } from "./src/utils/catalogoServidor";
+import { configurarNotificacoes, reagendarLembretes } from "./src/utils/lembretes";
+
+configurarNotificacoes();
 
 export type RootStackParamList = {
   Login: undefined;
   EsqueciSenha: undefined;
   NutriLogin: undefined;
   NutriPacientes: undefined;
-  NutriPaciente: { id: string };
+  NutriPaciente: { item: import("./src/services/nutri").PacienteDoNutri };
   Wizard: undefined;
   Home: { camera?: number } | undefined;
   Perfil: undefined;
   Smartwatch: undefined;
+  Lembretes: undefined;
   Treino: undefined;
   Receita: { id: string };
   Receitas: undefined;
@@ -59,8 +65,13 @@ function Principal() {
       const token = await AsyncStorage.getItem("@geladeira:token");
       const wizardDone = await AsyncStorage.getItem("@geladeira:wizardDone");
 
+      const nutri = (await AsyncStorage.getItem(CHAVE_PAPEL)) === "nutricionista";
+
       if (!token) {
         setInitialRoute("Login");
+      } else if (nutri) {
+        setInitialRoute("NutriPacientes"); // nutricionista não passa por wizard nem sincroniza diário
+        return;
       } else if (token && !wizardDone) {
         setInitialRoute("Wizard");
       } else {
@@ -111,6 +122,7 @@ function Principal() {
         <Stack.Screen name="Historico" component={HistoricoScreen} />
         <Stack.Screen name="Perfil" component={PerfilScreen} />
         <Stack.Screen name="Smartwatch" component={SmartwatchScreen} />
+        <Stack.Screen name="Lembretes" component={LembretesScreen} />
         <Stack.Screen name="Treino" component={TreinoScreen} />
         <Stack.Screen name="Receita" component={ReceitaScreen} />
         <Stack.Screen name="Receitas" component={ReceitasScreen} />
@@ -122,7 +134,16 @@ function Principal() {
   );
 }
 
+function useLembretesAoAbrir() {
+  useEffect(() => {
+    reagendarLembretes();
+    const assinatura = AppState.addEventListener("change", (estado) => { if (estado === "active") reagendarLembretes(); });
+    return () => assinatura.remove();
+  }, []);
+}
+
 export default function App() {
+  useLembretesAoAbrir();
   return (
     <TemaProvider>
       <Principal />

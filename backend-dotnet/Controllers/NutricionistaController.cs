@@ -80,6 +80,8 @@ public sealed class NutricionistaController(GeladeiraContext banco) : Controller
                 objetivo = v.Paciente.Perfil?.Objetivo,
                 idade = v.Paciente.Perfil?.Idade,
                 pesoKg = v.Paciente.Perfil?.PesoKg,
+                // Mesmo formato de GET /profile: o app calcula metas de calorias, macros e água com ele.
+                perfil = v.Paciente.Perfil is null ? null : ProfileController.Formatar(v.Paciente.Perfil),
             },
         }));
     }

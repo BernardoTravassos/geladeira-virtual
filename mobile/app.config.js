@@ -16,6 +16,6 @@ module.exports = ({ config }) => ({
   ...config,
   extra: {
     ...config.extra,
-    apiUrl: process.env.API_URL || undefined,
+    apiUrl: process.env.API_URL || config.extra?.apiUrl || undefined,
   },
 });

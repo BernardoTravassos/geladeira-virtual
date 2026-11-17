@@ -244,9 +244,16 @@ public sealed class AuthController(
         var usuario = await banco.Usuarios.AsNoTracking().SingleOrDefaultAsync(u => u.Id == UsuarioLogado);
         if (usuario is null) return Unauthorized(new { error = "Sessão inválida" });
 
+        var nutri = usuario.Papel == "nutricionista"
+            ? await banco.Nutricionistas.AsNoTracking().Where(n => n.UsuarioId == usuario.Id)
+                .Select(n => new { n.Nome, n.Crn }).SingleOrDefaultAsync()
+            : null;
+
         return Ok(new
         {
             email = usuario.Email,
+            papel = usuario.Papel,
+            nutricionista = nutri,
             criado_em = DateTime.SpecifyKind(usuario.CriadoEm, DateTimeKind.Utc)
                 .ToString("yyyy-MM-ddTHH:mm:ss.fffZ", System.Globalization.CultureInfo.InvariantCulture),
         });

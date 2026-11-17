@@ -86,7 +86,7 @@ public sealed class ProfileController(GeladeiraContext banco) : ControllerBase
     /// `id` e `usuario_id` ficaram DE FORA (item 15): o app não os usa, e são
     /// identificadores internos sem motivo para circular.
     /// </summary>
-    private static object Formatar(Perfil p) => new
+    internal static object Formatar(Perfil p) => new
     {
         nome = p.Nome,
         idade = p.Idade,

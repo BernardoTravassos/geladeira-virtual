@@ -8,6 +8,7 @@ import { gravarDia } from "../utils/sincronizacao";
 import { useFocusEffect } from "@react-navigation/native";
 import { sombra } from "../theme/colors";
 import { useChaveDoDia } from "../utils/dia";
+import { registrarMetaAgua, reagendarLembretes } from "../utils/lembretes";
 
 const AGUA = "#35A7E8";
 const AGUA_ESCURA = "#1C86C6";
@@ -47,6 +48,7 @@ export default function CardAgua({ metaMl }: Props) {
   const colors = useCores();
   const styles = useMemo(() => criarStyles(colors), [colors]);
   const meta = metaMl;
+  useEffect(() => { registrarMetaAgua(metaMl); }, [metaMl]); // os lembretes de água precisam saber a meta
   const chaveDia = useChaveDoDia(); // vira à meia-noite e zera o copo
   const [goles, setGoles] = useState<number[]>([]);
   const total = goles.reduce((a, b) => a + b, 0);
@@ -175,7 +177,7 @@ export default function CardAgua({ metaMl }: Props) {
 
   function salvar(lista: number[]) {
     setGoles(lista);
-    gravarDia(chaveDoDia(), JSON.stringify(lista)).catch(() => {});
+    gravarDia(chaveDoDia(), JSON.stringify(lista)).then(() => reagendarLembretes()).catch(() => {});
   }
   const beber = (ml: number) => salvar([...goles, ml]);
   const desfazer = () => salvar(goles.slice(0, -1));

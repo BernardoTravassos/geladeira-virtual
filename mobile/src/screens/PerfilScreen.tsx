@@ -15,8 +15,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { sombra, degrade } from "../theme/colors";
 import { alterarSenha, getConta, getProfile, saveProfile } from "../services/api";
+import { encerrarSessao } from "../services/nutri";
 import { calcularMetas, calcularMetaAguaMl, nivelDoPerfil, nivelPorRotulo, NIVEIS_ATIVIDADE, PerfilApi } from "../utils/nutricao";
 import CampoSenha from "../components/CampoSenha";
+import CardMeuNutricionista from "../components/CardMeuNutricionista";
 import BarraTeclado, { ID_BARRA_TECLADO } from "../components/BarraTeclado";
 import { interpretarNumero } from "../utils/numeros";
 import { OPCOES_INTOLERANCIA, REGRAS } from "../utils/camposPerfil";
@@ -208,7 +210,7 @@ export default function PerfilScreen({ navigation }: any) {
   }
 
   async function sair() {
-    await AsyncStorage.multiRemove(["@geladeira:token", "@geladeira:wizardDone"]);
+    await encerrarSessao();
     navigation.replace("Login");
   }
 
@@ -312,6 +314,21 @@ export default function PerfilScreen({ navigation }: any) {
               })}
             </View>
             <Text style={styles.nota}>"Automático" acompanha o modo claro ou escuro do seu celular.</Text>
+
+            <Text style={styles.secao}>Meu nutricionista</Text>
+            <CardMeuNutricionista />
+
+            <Text style={styles.secao}>Notificações</Text>
+            <View style={styles.card}>
+              <TouchableOpacity style={styles.linha} activeOpacity={0.7} onPress={() => navigation.navigate("Lembretes")} accessibilityRole="button">
+                <View style={styles.icone}><Feather name="bell" size={16} color={colors.primary} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.valor}>Lembretes e parabéns</Text>
+                  <Text style={styles.rotulo}>Água, refeições, treino e conquistas</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
 
             <Text style={styles.secao}>Dispositivos</Text>
             <View style={styles.card}>

@@ -20,6 +20,7 @@ import { getProfile, gerarCardapio, ehLimiteAtingido } from "../services/api";
 import { calcularMetas, calcularMetaAguaMl, saudacao, PerfilApi } from "../utils/nutricao";
 import PaywallCard from "../components/PaywallCard";
 import CardAgua from "../components/CardAgua";
+import { reagendarLembretes } from "../utils/lembretes";
 import { DEV } from "../config/dev";
 import CardOrientacaoNutri from "../components/CardOrientacaoNutri";
 import ChatNutri from "../components/ChatNutri";
@@ -89,6 +90,7 @@ export default function HomeScreen({ navigation, route }: any) {
     useCallback(() => {
       carregarDia().then(setRegistros);
       carregarEdicoes().then(setEdicoes);
+      reagendarLembretes(); // o plano de avisos acompanha o que a pessoa já fez hoje
     }, [chaveDoDia]),
   );
 

@@ -15,7 +15,7 @@ export const DEV = {
    *
    * ⚠️ Nunca publique com `true`: qualquer senha passaria a entrar.
    */
-  MODO_DEMO: true,
+  MODO_DEMO: false,
 
   /**
    * Força o card de assinatura a abrir sempre que você toca no botão da câmera,

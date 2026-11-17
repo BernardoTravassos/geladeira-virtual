@@ -16,7 +16,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { degrade } from "../theme/colors";
 import { LinearGradient } from "expo-linear-gradient";
 import Logo from "../components/Logo";
-import { login, register, getProfile, descreverFalhaDeRede } from "../services/api";
+import { register, getProfile, descreverFalhaDeRede } from "../services/api";
+import { entrar, guardarSessao } from "../services/nutri";
 import CampoSenha from "../components/CampoSenha";
 import { prepararDadosLocais } from "../utils/dadosLocais";
 import { sincronizarComLimite } from "../utils/sincronizacao";
@@ -59,12 +60,19 @@ export default function LoginScreen({ navigation }: any) {
 
     setCarregando(true);
     try {
-      const token = modoCadastro
-        ? await register(emailLimpo, senha)
-        : await login(emailLimpo, senha);
+      const { token, papel } = modoCadastro
+        ? { token: await register(emailLimpo, senha), papel: "paciente" as const }
+        : await entrar(emailLimpo, senha);
 
-      await AsyncStorage.setItem("@geladeira:token", token);
+      await guardarSessao(token, papel);
       await prepararDadosLocais(emailLimpo, modoCadastro);
+
+      // Conta de nutricionista que entrou pelo login comum: vai para a área dela.
+      if (papel === "nutricionista") {
+        navigation.replace("NutriPacientes");
+        return;
+      }
+
       if (!modoCadastro) await sincronizarComLimite(); // traz do servidor o diário da conta
       sincronizarCatalogo(); // segundo plano: alimentos do banco e os criados pela pessoa
 

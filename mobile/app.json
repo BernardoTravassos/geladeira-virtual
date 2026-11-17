@@ -25,6 +25,7 @@
       ]
     },
     "extra": {
+      "apiUrl": "https://geladeira-virtual.onrender.com",
       "eas": {
         "projectId": "33b427fc-e5ae-41a4-a2cc-825128fc8b66"
       }
@@ -45,6 +46,7 @@
         }
       ],
       "react-native-health-connect",
+      ["expo-notifications", { "color": "#1F5D3A" }],
       [
         "expo-build-properties",
         {

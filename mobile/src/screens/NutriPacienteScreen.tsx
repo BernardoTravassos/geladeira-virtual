@@ -1,17 +1,16 @@
 import { useCores } from "../theme/tema";
 import type { Cores } from "../theme/colors";
 import { sombra } from "../theme/colors";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useFeedback } from "../components/Feedback";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, LayoutAnimation } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, LayoutAnimation, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
 import { serie } from "../theme/graficos";
-import { PACIENTES } from "../mocks/nutricionista";
-import { DIARIOS, type RegistroRefeicao } from "../mocks/nutriDiario";
-import { ORIENTACAO_NUTRICIONISTA as plano } from "../mocks/orientacaoNutricionista";
-import { detalharRefeicao } from "../utils/refeicaoDetalhe";
+import { diarioDoPaciente } from "../services/nutri";
+import { detalheDoRegistro, montarDiario, type DiarioReal, type RegistroNutri } from "../utils/diarioPaciente";
+import { calcularMetaAguaMl, calcularMetas } from "../utils/nutricao";
 import GraficoColunas from "../components/GraficoColunas";
 import Medidor from "../components/Medidor";
 import AnelProgresso from "../components/AnelProgresso";
@@ -26,64 +25,91 @@ const ABAS: { chave: Aba; rotulo: string; icone: keyof typeof Feather.glyphMap }
   { chave: "plano", rotulo: "Plano", icone: "clipboard" },
 ];
 
-const ORIGEM: Record<RegistroRefeicao["origem"], { texto: string; icone: keyof typeof Feather.glyphMap }> = {
-  plano: { texto: "Seguiu o plano", icone: "check-circle" },
+const ORIGEM: Record<RegistroNutri["origem"], { texto: string; icone: keyof typeof Feather.glyphMap }> = {
   foto: { texto: "Foto do prato", icone: "camera" },
   manual: { texto: "Marcou os alimentos", icone: "edit-3" },
 };
 
-const kcalDe = (r: RegistroRefeicao) => detalharRefeicao(r.itens).total.kcal;
 
 export default function NutriPacienteScreen({ route, navigation }: any) {
   const colors = useCores();
   const styles = useMemo(() => criarStyles(colors), [colors]);
   const feedback = useFeedback();
   const insets = useSafeAreaInsets();
-  const paciente = PACIENTES.find((p) => p.id === route.params?.id) ?? PACIENTES[0];
-  const diario = DIARIOS[paciente.id] ?? DIARIOS["1"];
-  const primeiroNome = paciente.nome.split(" ")[0];
+  const item = route.params.item;
+  const p = item.paciente!;
+  const perfil = p.perfil;
+  const nomePaciente = p.nome || p.email;
+  const primeiroNome = nomePaciente.split(" ")[0];
+
+  const [diario, setDiario] = useState<DiarioReal | null>(null);
+  const [erroDiario, setErroDiario] = useState("");
+  useEffect(() => {
+    let vivo = true;
+    diarioDoPaciente(p.id)
+      .then((linhas) => { if (vivo) setDiario(montarDiario(linhas)); })
+      .catch((e: any) => { if (vivo) setErroDiario(e?.response?.status === 404 ? "Este paciente encerrou o acompanhamento." : "Não foi possível carregar o diário. Volte e tente de novo."); });
+    return () => { vivo = false; };
+  }, [p.id]);
 
   const [aba, setAba] = useState<Aba>("resumo");
   const [editandoMetas, setEditandoMetas] = useState(false);
-  const [metaCalorias, setMetaCalorias] = useState(String(paciente.metaCalorias));
+  const metas = useMemo(() => calcularMetas(perfil), [perfil]);
+  const aguaMetaMl = useMemo(() => calcularMetaAguaMl(perfil), [perfil]);
+  const [metaCalorias, setMetaCalorias] = useState(String(metas.calorias));
 
   // Tudo abaixo é calculado do que a pessoa registrou, com as mesmas contas do app dela.
   const consumo = useMemo(() => {
-    const todos = diario.refeicoes.flatMap((r) => r.itens);
-    return detalharRefeicao(todos);
+    const todas = (diario?.refeicoes ?? []).map(detalheDoRegistro);
+    const soma = todas.reduce((t, d) => ({ kcal: t.kcal + d.total.kcal, proteina: t.proteina + d.total.proteina, carbo: t.carbo + d.total.carbo, gordura: t.gordura + d.total.gordura }), { kcal: 0, proteina: 0, carbo: 0, gordura: 0 });
+    // Vitaminas e minerais: soma o que cada refeição trouxe.
+    const micros = new Map<string, (typeof todas)[number]["micros"][number]>();
+    for (const d of todas) for (const m of d.micros) { const a = micros.get(m.chave); micros.set(m.chave, a ? { ...a, valor: a.valor + m.valor, vd: a.vd + m.vd } : { ...m }); }
+    return { total: soma, micros: [...micros.values()].sort((a, b) => b.vd - a.vd) };
   }, [diario]);
   const consumidas = Math.round(consumo.total.kcal);
-  const meta = paciente.metaCalorias;
-  const gastas = paciente.gastasHoje; // o gasto do relógio já inclui os treinos
-  const saldo = consumidas - gastas;
+  const meta = Number(metaCalorias) || metas.calorias;
   const macros = [
-    { nome: "Proteína", atual: Math.round(consumo.total.proteina), meta: paciente.macros[0].meta },
-    { nome: "Carboidrato", atual: Math.round(consumo.total.carbo), meta: paciente.macros[1].meta },
-    { nome: "Gordura", atual: Math.round(consumo.total.gordura), meta: paciente.macros[2].meta },
+    { nome: "Proteína", atual: Math.round(consumo.total.proteina), meta: metas.proteina },
+    { nome: "Carboidrato", atual: Math.round(consumo.total.carbo), meta: metas.carboidrato },
+    { nome: "Gordura", atual: Math.round(consumo.total.gordura), meta: metas.gordura },
   ];
-  const diferencaPeso = paciente.pesoKg - paciente.pesoInicialKg;
-  const semRegistro = diario.refeicoes.length === 0;
+  const peso = Number(p.pesoKg) || 0;
+  const semRegistro = !diario || diario.refeicoes.length === 0;
 
   // Pontos de atenção que o nutricionista quer ver logo.
   const alertas: { icone: keyof typeof Feather.glyphMap; texto: string; tom: "ok" | "atencao" }[] = [];
-  if (semRegistro) alertas.push({ icone: "alert-circle", texto: `${primeiroNome} ainda não registrou nenhuma refeição hoje.`, tom: "atencao" });
-  else {
-    const prot = macros[0];
-    if (prot.atual < prot.meta * 0.5 && diario.refeicoes.length >= 2) alertas.push({ icone: "trending-down", texto: `Proteína em ${Math.round((prot.atual / prot.meta) * 100)}% da meta — abaixo do esperado para o horário.`, tom: "atencao" });
-    else alertas.push({ icone: "check-circle", texto: "Calorias e macros dentro do ritmo esperado.", tom: "ok" });
+  if (diario) {
+    if (semRegistro) alertas.push({ icone: "alert-circle", texto: `${primeiroNome} ainda não registrou nenhuma refeição hoje.`, tom: "atencao" });
+    else {
+      const prot = macros[0];
+      if (prot.atual < prot.meta * 0.5 && diario.refeicoes.length >= 2) alertas.push({ icone: "trending-down", texto: `Proteína em ${Math.round((prot.atual / prot.meta) * 100)}% da meta — abaixo do esperado para o horário.`, tom: "atencao" });
+      else alertas.push({ icone: "check-circle", texto: "Calorias e macros dentro do ritmo esperado.", tom: "ok" });
+    }
+    if (diario.aguaMl < aguaMetaMl * 0.5) alertas.push({ icone: "droplet", texto: `Água em ${Math.round((diario.aguaMl / aguaMetaMl) * 100)}% da meta.`, tom: "atencao" });
+    const comFoto = diario.refeicoes.filter((r) => r.origem === "foto").length;
+    if (comFoto > 0) alertas.push({ icone: "camera", texto: `${comFoto} ${comFoto === 1 ? "refeição registrada" : "refeições registradas"} por foto do prato (valores estimados por IA).`, tom: "ok" });
   }
-  if (diario.aguaMl < diario.aguaMetaMl * 0.5) alertas.push({ icone: "droplet", texto: `Água em ${Math.round((diario.aguaMl / diario.aguaMetaMl) * 100)}% da meta.`, tom: "atencao" });
-  const comFoto = diario.refeicoes.filter((r) => r.origem === "foto").length;
-  if (comFoto > 0) alertas.push({ icone: "camera", texto: `${comFoto} ${comFoto === 1 ? "refeição trocada" : "refeições trocadas"} por foto: o que ${primeiroNome} comeu difere do plano.`, tom: "ok" });
 
   function salvarMetas() {
     setEditandoMetas(false);
-    feedback.sucesso("Meta atualizada!", `A meta de ${primeiroNome} passou para ${metaCalorias} kcal. (demonstração: ainda não é gravado no servidor)`, { duracao: 2600 });
+    feedback.sucesso("Meta atualizada!", `A meta de ${primeiroNome} passou para ${metaCalorias} kcal. (por enquanto só vale nesta tela: ainda não é enviada ao paciente)`, { duracao: 2600 });
   }
 
   function trocarAba(a: Aba) {
     LayoutAnimation.configureNext(LayoutAnimation.create(180, "easeInEaseOut", "opacity"));
     setAba(a);
+  }
+
+  if (!diario) {
+    return (
+      <View style={[styles.tela, { padding: 24, paddingTop: 56, gap: 16 }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <Feather name="arrow-left" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+        {erroDiario ? <Text style={styles.vazioTxt}>{erroDiario}</Text> : <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />}
+      </View>
+    );
   }
 
   return (
@@ -102,17 +128,17 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
               <Feather name="arrow-left" size={19} color="#fff" />
             </TouchableOpacity>
             <View style={styles.avatar}>
-              <Text style={styles.avatarTxt}>{paciente.nome.charAt(0)}</Text>
+              <Text style={styles.avatarTxt}>{nomePaciente.charAt(0).toUpperCase()}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.nome}>{paciente.nome}</Text>
-              <Text style={styles.sub}>{paciente.idade} anos · {paciente.objetivo}</Text>
+              <Text style={styles.nome}>{nomePaciente}</Text>
+              <Text style={styles.sub}>{[p.idade ? `${p.idade} anos` : null, p.objetivo].filter(Boolean).join(" · ")}</Text>
             </View>
           </View>
           <View style={styles.pilulas}>
-            <Pilula icone="target" valor={`${paciente.adesao}%`} rotulo="adesão" styles={styles} />
-            <Pilula icone={diferencaPeso <= 0 ? "trending-down" : "trending-up"} valor={`${diferencaPeso >= 0 ? "+" : ""}${diferencaPeso.toFixed(1)} kg`} rotulo={`${paciente.pesoKg.toFixed(1)} kg agora`} styles={styles} />
-            <Pilula icone="clock" valor={paciente.ultimoRegistro.replace("hoje, ", "")} rotulo="último registro" styles={styles} />
+            <Pilula icone="target" valor={diario ? `${diario.adesao}%` : "—"} rotulo="adesão (7 dias)" styles={styles} />
+            <Pilula icone="activity" valor={peso ? `${peso.toFixed(1)} kg` : "—"} rotulo="peso no perfil" styles={styles} />
+            <Pilula icone="clock" valor={diario?.ultimoRegistro?.replace("hoje, ", "") ?? "—"} rotulo="último registro" styles={styles} />
           </View>
         </View>
 
@@ -146,12 +172,6 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
                   ))}
                 </View>
               </View>
-              <View style={styles.saldo}>
-                <Feather name="activity" size={13} color={colors.textSecondary} />
-                <Text style={styles.saldoTxt}>
-                  Gastou {gastas.toLocaleString("pt-BR")} kcal · saldo <Text style={styles.saldoNum}>{saldo >= 0 ? "+" : ""}{saldo.toLocaleString("pt-BR")}</Text>
-                </Text>
-              </View>
             </View>
 
             <View style={styles.alertas}>
@@ -170,16 +190,15 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
                   <Text style={styles.rotuloSecao}>Água</Text>
                 </View>
                 <Text style={styles.cardTopoValor}>
-                  {(diario.aguaMl / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} L <Text style={styles.cardTopoUn}>de {(diario.aguaMetaMl / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L</Text>
+                  {(diario.aguaMl / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} L <Text style={styles.cardTopoUn}>de {(aguaMetaMl / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L</Text>
                 </Text>
               </View>
-              <Medidor rotulo="Hidratação de hoje" atual={diario.aguaMl} meta={diario.aguaMetaMl} unidade="ml" cor={serie.agua} atraso={80} />
+              <Medidor rotulo="Hidratação de hoje" atual={diario.aguaMl} meta={aguaMetaMl} unidade="ml" cor={serie.agua} atraso={80} />
               {diario.goles.length > 0 ? (
                 <View style={styles.goles}>
                   {diario.goles.map((g, i) => (
                     <View key={i} style={styles.gole}>
-                      <Text style={styles.goleHora}>{g.hora}</Text>
-                      <Text style={styles.goleMl}>+{g.ml}</Text>
+                      <Text style={styles.goleMl}>+{g} ml</Text>
                     </View>
                   ))}
                 </View>
@@ -188,22 +207,20 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
               )}
               <Text style={styles.rotuloMini}>Últimos 7 dias</Text>
               <GraficoColunas
-                rotulos={paciente.semana.map((d) => d.dia)}
+                rotulos={diario.rotulosSemana}
                 unidade="ml"
                 series={[{ nome: "Água", cor: serie.agua, valores: diario.aguaSemana }]}
-                referencia={{ valor: diario.aguaMetaMl, rotulo: `meta ${(diario.aguaMetaMl / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L` }}
+                referencia={{ valor: aguaMetaMl, rotulo: `meta ${(aguaMetaMl / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L` }}
               />
             </View>
 
             <View style={[styles.card, sombra]}>
-              <Text style={styles.rotuloSecao}>Calorias · últimos 7 dias</Text>
+              <Text style={styles.rotuloSecao}>Calorias registradas · últimos 7 dias</Text>
               <GraficoColunas
-                rotulos={paciente.semana.map((d) => d.dia)}
+                rotulos={diario.rotulosSemana}
                 unidade="kcal"
-                series={[
-                  { nome: "Consumidas", cor: serie.consumidas, valores: paciente.semana.map((d) => d.consumidas) },
-                  { nome: "Gastas", cor: serie.gastas, valores: paciente.semana.map((d) => d.gastas) },
-                ]}
+                series={[{ nome: "Consumidas", cor: serie.consumidas, valores: diario.kcalSemana }]}
+                referencia={{ valor: meta, rotulo: `meta ${meta.toLocaleString("pt-BR")}` }}
               />
             </View>
           </View>
@@ -212,16 +229,13 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
         {aba === "refeicoes" && (
           <View style={styles.bloco}>
             {diario.refeicoes.map((r) => {
-              const det = detalharRefeicao(r.itens);
-              const indicada = plano.refeicoes.find((x) => x.chave === r.chave);
-              const kcalPlano = indicada ? Math.round(detalharRefeicao(indicada.itens).total.kcal) : null;
-              const delta = kcalPlano != null ? Math.round(det.total.kcal) - kcalPlano : null;
+              const det = detalheDoRegistro(r);
               const o = ORIGEM[r.origem];
               return (
                 <View key={r.chave} style={[styles.card, sombra]}>
                   <View style={styles.refTopo}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.refNome}>{r.nome} <Text style={styles.refHora}>· {r.horario}</Text></Text>
+                      <Text style={styles.refNome}>{r.nome}{!!r.horario && <Text style={styles.refHora}> · {r.horario}</Text>}</Text>
                       <View style={[styles.origem, r.origem === "foto" && styles.origemFoto]}>
                         <Feather name={o.icone} size={11} color={r.origem === "foto" ? "#B4600F" : colors.primary} />
                         <Text style={[styles.origemTxt, r.origem === "foto" && { color: "#B4600F" }]}>{o.texto}</Text>
@@ -229,9 +243,6 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
                     </View>
                     <View style={{ alignItems: "flex-end" }}>
                       <Text style={styles.refKcal}>{Math.round(det.total.kcal)} <Text style={styles.refKcalUn}>kcal</Text></Text>
-                      {delta != null && r.origem !== "plano" && (
-                        <Text style={[styles.delta, { color: delta > 0 ? "#B4600F" : colors.primary }]}>{delta > 0 ? "+" : ""}{delta} vs plano</Text>
-                      )}
                     </View>
                   </View>
 
@@ -252,12 +263,6 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
                     </View>
                   ))}
 
-                  {r.origem !== "plano" && indicada && (
-                    <View style={styles.indicada}>
-                      <Feather name="clipboard" size={12} color={colors.textSecondary} />
-                      <Text style={styles.indicadaTxt} numberOfLines={2}>Você indicou: {indicada.sugestao}</Text>
-                    </View>
-                  )}
                 </View>
               );
             })}
@@ -296,38 +301,12 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
 
         {aba === "saude" && (
           <View style={styles.bloco}>
-            <View style={styles.secaoLinha}>
-              <Text style={styles.secao}>Smartwatch / celular</Text>
-              <View style={styles.sincronizado}>
-                <Feather name="refresh-cw" size={10} color={colors.textSecondary} />
-                <Text style={styles.sincronizadoTxt}>sincronizado {paciente.smartwatch.sincronizadoEm}</Text>
-              </View>
-            </View>
-            <View style={styles.indicadores}>
-              <Indicador icone="activity" valor={paciente.smartwatch.passos.toLocaleString("pt-BR")} rotulo="passos hoje" styles={styles} colors={colors} />
-              <Indicador icone="heart" valor={`${paciente.smartwatch.batimentoMedio}`} rotulo="bpm agora" styles={styles} colors={colors} />
-              <Indicador icone="zap" valor={`${paciente.smartwatch.minutosAtivos}`} rotulo="min ativos" styles={styles} colors={colors} />
-              <Indicador icone="moon" valor={`${paciente.smartwatch.sonoHoras}h`} rotulo="de sono" styles={styles} colors={colors} />
-            </View>
-
             <View style={[styles.card, sombra]}>
-              <View style={styles.cardTopo}>
-                <Text style={styles.rotuloSecao}>Passos na semana</Text>
-                <Text style={styles.cardTopoValor}>
-                  {Math.round(paciente.smartwatch.passosSemana.reduce((s, v) => s + v, 0) / paciente.smartwatch.passosSemana.length).toLocaleString("pt-BR")} <Text style={styles.cardTopoUn}>média/dia</Text>
-                </Text>
+              <View style={styles.tituloIcone}>
+                <Feather name="watch" size={14} color={colors.textSecondary} />
+                <Text style={styles.rotuloSecao}>Smartwatch</Text>
               </View>
-              <GraficoColunas
-                rotulos={paciente.semana.map((d) => d.dia)}
-                unidade="passos"
-                series={[{ nome: "Passos", cor: colors.primaryLight, valores: paciente.smartwatch.passosSemana }]}
-                referencia={{ valor: paciente.smartwatch.metaPassos, rotulo: `meta ${(paciente.smartwatch.metaPassos / 1000).toFixed(0)}k` }}
-              />
-              <View style={styles.resumoSemana}>
-                <ResumoSemana valor={`${paciente.smartwatch.mediaBatimento}`} rotulo="bpm médio" styles={styles} />
-                <ResumoSemana valor={`${paciente.smartwatch.totalMinutosAtivos}`} rotulo="min ativos" styles={styles} />
-                <ResumoSemana valor={`${paciente.smartwatch.mediaSonoHoras}h`} rotulo="sono médio" styles={styles} />
-              </View>
+              <Text style={styles.vazioTxt}>Passos, batimentos e sono ainda não são compartilhados com o nutricionista. Os treinos que {primeiroNome} registra aparecem abaixo.</Text>
             </View>
 
             <Text style={styles.secao}>Treinos de hoje</Text>
@@ -339,7 +318,7 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
                 </View>
               ) : (
                 diario.treinos.map((t, i) => (
-                  <View key={t.nome} style={[styles.itemLinha, i < diario.treinos.length - 1 && styles.divisor]}>
+                  <View key={`${t.nome}-${i}`} style={[styles.itemLinha, i < diario.treinos.length - 1 && styles.divisor]}>
                     <View style={styles.iconeRedondo}><Feather name="zap" size={14} color={colors.primary} /></View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.itemNome}>{t.nome}</Text>
@@ -354,11 +333,7 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
             <View style={[styles.card, styles.pesoCard, sombra]}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rotuloSecao}>Peso</Text>
-                <Text style={styles.pesoValor}>{paciente.pesoKg.toFixed(1)} kg</Text>
-              </View>
-              <View style={styles.pesoDelta}>
-                <Feather name={diferencaPeso < 0 ? "trending-down" : "trending-up"} size={15} color={colors.textSecondary} />
-                <Text style={styles.pesoDeltaTxt}>{diferencaPeso >= 0 ? "+" : ""}{diferencaPeso.toFixed(1)} kg desde o início</Text>
+                <Text style={styles.pesoValor}>{peso ? `${peso.toFixed(1)} kg` : "—"}</Text>
               </View>
             </View>
           </View>
@@ -366,7 +341,7 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
 
         {aba === "plano" && (
           <View style={styles.bloco}>
-            <PlanoEditorNutri pacienteId={paciente.id} pacienteNome={paciente.nome} aoSalvar={(m) => feedback.sucesso(m, undefined, { duracao: 1100 })} />
+            <PlanoEditorNutri pacienteId={p.id} pacienteNome={nomePaciente} aoSalvar={(m) => feedback.sucesso(m, undefined, { duracao: 1100 })} />
 
             <Text style={styles.secao}>Metas</Text>
             <View style={[styles.card, sombra]}>
@@ -385,7 +360,7 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
                   <Feather name="sliders" size={17} color={colors.primary} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.itemNome}>Ajustar metas</Text>
-                    <Text style={styles.itemInfo}>Meta atual: {meta.toLocaleString("pt-BR")} kcal · defina calorias e macros no lugar da fórmula</Text>
+                    <Text style={styles.itemInfo}>Meta atual: {meta.toLocaleString("pt-BR")} kcal · calculada pela fórmula do app com o perfil do paciente</Text>
                   </View>
                   <Feather name="chevron-right" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
