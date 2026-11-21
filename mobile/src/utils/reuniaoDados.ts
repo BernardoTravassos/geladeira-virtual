@@ -29,7 +29,24 @@ export type Foco = { alvo: Alvo; titulo?: string; itens?: string[]; msg?: string
 export type MetaCombinada = { kcal?: number; aguaMl?: number };
 export type Fechamento = { notas: string; meta?: MetaCombinada; focos: string[]; duracaoSeg: number; nutricionista: string };
 
+export type AbaPainel = "hoje" | "plano" | "metas";
+export type ItemPlanoPainel = { nome: string; horario?: string; sugestao: string };
+/** O painel compartilhado: o nutricionista mexe, e o paciente vê o mesmo, ao vivo. */
+export type EstadoPainel = {
+  aberto: boolean;
+  aba: AbaPainel;
+  /** Indicador que o nutricionista está apontando. */
+  alvo?: Alvo | null;
+  /** Refeição do plano em destaque. */
+  sel?: number | null;
+  plano?: ItemPlanoPainel[];
+  /** Valores que o nutricionista está ajustando, antes de combinar. */
+  rascunho?: MetaCombinada;
+  combinada?: boolean;
+};
+
 export type Mensagem =
+  | { t: "painel"; d: EstadoPainel }
   | { t: "resumo"; d: ResumoDia }
   | { t: "foco"; d: Foco }
   | { t: "meta"; d: MetaCombinada }

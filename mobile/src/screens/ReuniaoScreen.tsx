@@ -5,9 +5,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { gravarConsulta, tokenDaReuniao } from "../services/nutri";
 import { chaveData } from "../utils/dia";
-import { codificar, decodificar, fmtL, resumoDoDia, TOPICO, type Fechamento, type Foco, type Mensagem, type MetaCombinada, type ResumoDia } from "../utils/reuniaoDados";
+import { codificar, decodificar, fmtL, resumoDoDia, TOPICO, type EstadoPainel, type Fechamento, type Mensagem, type MetaCombinada, type ResumoDia } from "../utils/reuniaoDados";
 import { Chip, HUD, Vidro } from "../components/reuniao/hud";
-import PainelNutri from "../components/reuniao/PainelNutri";
+import PainelNutri, { NotasNutri } from "../components/reuniao/PainelNutri";
 import PainelPaciente, { AvisoDaNutri } from "../components/reuniao/PainelPaciente";
 import ReuniaoJitsi from "./ReuniaoJitsi";
 
@@ -43,7 +43,8 @@ const ALTURA_CONTROLES = 98;
 
 const iniciais = (nome?: string) => (nome ?? "?").replace(/^(Dra?\.?)\s+/i, "").split(" ").filter(Boolean).slice(0, 2).map((x) => x[0].toUpperCase()).join("") || "?";
 const formatarTempo = (seg: number) => `${String(Math.floor(seg / 60)).padStart(2, "0")}:${String(seg % 60).padStart(2, "0")}`;
-const rotuloFoco = (f: Foco) => (f.alvo === "refeicao" ? f.titulo ?? "Refeição" : f.titulo ?? f.alvo);
+const NOME_ALVO: Record<string, string> = { kcal: "Calorias", agua: "Água", treino: "Treino", macros: "Macros", refeicao: "Plano" };
+const PAINEL_INICIAL: EstadoPainel = { aberto: false, aba: "hoje" };
 
 function ReuniaoNativa({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -60,9 +61,12 @@ function ReuniaoNativa({ route, navigation }: any) {
   const ehNutri = dados?.papel === "nutricionista";
 
   // Painel de dados e o que os dois lados trocam durante a chamada
-  const [painel, setPainel] = useState(false);
+  const [estadoPainel, setEstadoPainel] = useState<EstadoPainel>(PAINEL_INICIAL);
+  const estadoRef = useRef<EstadoPainel>(PAINEL_INICIAL);
+  const [abertoLocal, setAbertoLocal] = useState(false); // paciente abriu o "Meu dia" por conta própria
+  const [dispensado, setDispensado] = useState(false); // paciente fechou o popup que a nutricionista abriu
+  const [notasAbertas, setNotasAbertas] = useState(false);
   const [resumo, setResumo] = useState<ResumoDia | null>(null);
-  const [foco, setFoco] = useState<Foco | null>(null);
   const [metaCombinada, setMetaCombinada] = useState<MetaCombinada | undefined>();
   const [avisoMeta, setAvisoMeta] = useState<MetaCombinada | null>(null);
   const [notas, setNotas] = useState("");
@@ -103,7 +107,7 @@ function ReuniaoNativa({ route, navigation }: any) {
           const m = decodificar(payload);
           if (!m) return;
           if (m.t === "resumo") setResumo(m.d);
-          else if (m.t === "foco") setFoco(m.d);
+          else if (m.t === "painel") { setEstadoPainel(m.d); if (!m.d.aberto) setDispensado(false); }
           else if (m.t === "meta") { setMetaCombinada(m.d); setAvisoMeta(m.d); }
           else if (m.t === "fim") { setFechamento(m.d); setFase("encerrada"); room.disconnect().catch?.(() => {}); }
         });
@@ -163,12 +167,7 @@ function ReuniaoNativa({ route, navigation }: any) {
   }, [dados, ehNutri, fase, publicarResumo]);
   useEffect(() => { if (!ehNutri && outro) publicarResumo(); }, [outro?.identity]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // O destaque some sozinho depois de um tempo
-  useEffect(() => {
-    if (!foco) return;
-    const t = setTimeout(() => setFoco(null), 25000);
-    return () => clearTimeout(t);
-  }, [foco]);
+  // A meta nova aparece por um tempo e some sozinha
   useEffect(() => {
     if (!avisoMeta) return;
     const t = setTimeout(() => setAvisoMeta(null), 12000);
@@ -194,7 +193,23 @@ function ReuniaoNativa({ route, navigation }: any) {
     try { await pub?.videoTrack?.restartTrack({ facingMode: prox ? "user" : "environment" }); setFrontal(prox); } catch {}
   }
 
-  const destacar = (f: Foco) => { enviar({ t: "foco", d: f }); setFocos((l) => (l.includes(rotuloFoco(f)) ? l : [...l, rotuloFoco(f)])); setPainel(false); };
+  // Nutricionista: cada mexida no painel vai para o paciente, que vê o mesmo ao vivo
+  const mudarPainel = useCallback((patch: Partial<EstadoPainel>) => {
+    const novo = { ...estadoRef.current, ...patch };
+    estadoRef.current = novo;
+    setEstadoPainel(novo);
+    enviar({ t: "painel", d: novo });
+    const falou = patch.alvo ? NOME_ALVO[patch.alvo] : patch.sel != null && patch.sel >= 0 ? `Plano · ${novo.plano?.[patch.sel]?.nome ?? "refeição"}` : patch.combinada ? "Metas" : null;
+    if (falou) setFocos((l) => (l.includes(falou) ? l : [...l, falou]));
+  }, [enviar]);
+  const alternarPainel = () => {
+    if (ehNutri) mudarPainel({ aberto: !estadoRef.current.aberto });
+    else { setAbertoLocal((v) => !v); setDispensado(false); }
+  };
+  // quem entra depois já recebe o painel como está
+  useEffect(() => { if (ehNutri && outro && estadoRef.current.aberto) enviar({ t: "painel", d: estadoRef.current }); }, [outro?.identity]); // eslint-disable-line react-hooks/exhaustive-deps
+  const painelVisivelPaciente = !ehNutri && ((estadoPainel.aberto && !dispensado) || abertoLocal);
+  const fecharPaciente = () => { setAbertoLocal(false); if (estadoPainel.aberto) setDispensado(true); };
   const combinarMeta = (m: MetaCombinada) => { setMetaCombinada(m); enviar({ t: "meta", d: m }); };
 
   // Nutricionista: encerrar manda o fechamento ao paciente e guarda o resumo no prontuário dele
@@ -290,9 +305,9 @@ function ReuniaoNativa({ route, navigation }: any) {
       {/* Indicadores sempre à vista: tocar abre o painel */}
       {resumo && (fase === "emChamada" || fase === "aguardando") && (
         <View style={[styles.chips, { top: insets.top + 56 }]}>
-          <Chip icone="zap" cor={HUD.verde} texto={`${resumo.kcal.toLocaleString("pt-BR")} / ${(metaCombinada?.kcal ?? resumo.metaKcal).toLocaleString("pt-BR")} kcal`} onPress={() => setPainel(true)} />
-          <Chip icone="droplet" cor={HUD.ciano} texto={`${fmtL(resumo.aguaMl)} / ${fmtL(metaCombinada?.aguaMl ?? resumo.metaAguaMl)}`} onPress={() => setPainel(true)} />
-          {resumo.treinoMin > 0 && <Chip icone="activity" cor={HUD.ambar} texto={`${resumo.treinoMin} min treino`} onPress={() => setPainel(true)} />}
+          <Chip icone="zap" cor={HUD.verde} texto={`${resumo.kcal.toLocaleString("pt-BR")} / ${(metaCombinada?.kcal ?? resumo.metaKcal).toLocaleString("pt-BR")} kcal`} onPress={alternarPainel} />
+          <Chip icone="droplet" cor={HUD.ciano} texto={`${fmtL(resumo.aguaMl)} / ${fmtL(metaCombinada?.aguaMl ?? resumo.metaAguaMl)}`} onPress={alternarPainel} />
+          {resumo.treinoMin > 0 && <Chip icone="activity" cor={HUD.ambar} texto={`${resumo.treinoMin} min treino`} onPress={alternarPainel} />}
         </View>
       )}
 
@@ -307,13 +322,14 @@ function ReuniaoNativa({ route, navigation }: any) {
       )}
 
       {/* Destaque da nutricionista / meta nova, sobre o vídeo do paciente */}
-      {!ehNutri && !painel && <AvisoDaNutri foco={foco} meta={foco ? null : avisoMeta} aoDispensar={() => { setFoco(null); setAvisoMeta(null); }} bottom={fundoSheet + 8} />}
+      {!ehNutri && !painelVisivelPaciente && <AvisoDaNutri foco={null} meta={avisoMeta} aoDispensar={() => setAvisoMeta(null)} bottom={fundoSheet + 8} />}
 
       {/* Controles, com nome embaixo de cada botão */}
       <View style={[styles.controles, { paddingBottom: Math.max(insets.bottom, 14) + 6 }]}>
         <Botao icone={micLigado ? "mic" : "mic-off"} ativo={micLigado} onPress={alternarMic} rotulo={micLigado ? "Mudo" : "Ativar"} styles={styles} />
         <Botao icone={camLigada ? "video" : "video-off"} ativo={camLigada} onPress={alternarCamera} rotulo="Câmera" styles={styles} />
-        <Botao icone={ehNutri ? "layers" : "activity"} ativo={!painel} onPress={() => setPainel((v) => !v)} rotulo={ehNutri ? "Painel" : "Meu dia"} styles={styles} destaque />
+        <Botao icone={ehNutri ? "layers" : "activity"} ativo={!(ehNutri ? estadoPainel.aberto : painelVisivelPaciente)} onPress={alternarPainel} rotulo={ehNutri ? "Painel" : "Meu dia"} styles={styles} destaque />
+        {ehNutri && <Botao icone="edit-3" ativo={!notasAbertas} onPress={() => { setNotasAbertas((v) => !v); if (estadoRef.current.aberto) mudarPainel({ aberto: false }); }} rotulo="Notas" styles={styles} />}
         <Botao icone="refresh-cw" ativo onPress={virarCamera} rotulo="Virar" styles={styles} />
         <View style={styles.botaoCol}>
           <TouchableOpacity style={[styles.botao, styles.encerrar]} onPress={encerrar} accessibilityRole="button" accessibilityLabel="Encerrar reunião"><Feather name="phone-off" size={22} color="#fff" /></TouchableOpacity>
@@ -322,10 +338,13 @@ function ReuniaoNativa({ route, navigation }: any) {
       </View>
 
       {ehNutri && dados && (
-        <PainelNutri aberta={painel} aoFechar={() => setPainel(false)} bottom={fundoSheet} pacienteId={dados.pacienteId} nomePaciente={nomePaciente} perfil={perfil ?? null}
-          resumo={resumo} aoDestacar={destacar} aoCombinarMeta={combinarMeta} metaCombinada={metaCombinada} notas={notas} aoMudarNotas={setNotas} focosEnviados={focos} />
+        <>
+          <PainelNutri aberta={estadoPainel.aberto} aoFechar={() => mudarPainel({ aberto: false })} bottom={fundoSheet} pacienteId={dados.pacienteId} nomePaciente={nomePaciente} perfil={perfil ?? null}
+            resumo={resumo} estado={estadoPainel} aoMudar={mudarPainel} metaCombinada={metaCombinada} aoCombinar={combinarMeta} />
+          <NotasNutri aberta={notasAbertas} aoFechar={() => setNotasAbertas(false)} bottom={fundoSheet} notas={notas} aoMudar={setNotas} focos={focos} />
+        </>
       )}
-      {!ehNutri && <PainelPaciente aberta={painel} aoFechar={() => setPainel(false)} bottom={fundoSheet} resumo={resumo} meta={metaCombinada} foco={foco} />}
+      {!ehNutri && <PainelPaciente aberta={painelVisivelPaciente} aoFechar={fecharPaciente} bottom={fundoSheet} resumo={resumo} meta={metaCombinada} estado={estadoPainel} />}
     </View>
   );
 }
@@ -361,9 +380,9 @@ const criarStyles = () => StyleSheet.create({
   seloTxt: { color: "#fff", fontSize: 13, fontWeight: "700" },
   chips: { position: "absolute", left: 14, gap: 6, alignItems: "flex-start" },
   mini: { position: "absolute", right: 14, width: 104, height: 148, borderRadius: 16, overflow: "hidden", borderWidth: 2, borderColor: "rgba(255,255,255,0.35)", backgroundColor: "#000" },
-  controles: { position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", justifyContent: "center", gap: 12, paddingTop: 14 },
+  controles: { position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", justifyContent: "center", gap: 8, paddingTop: 14 },
   botaoCol: { alignItems: "center", gap: 4 },
-  botao: { width: 54, height: 54, borderRadius: 27, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  botao: { width: 50, height: 50, borderRadius: 25, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   botaoOff: { backgroundColor: "#fff" },
   botaoDestaque: { backgroundColor: HUD.verde, shadowColor: HUD.verde, shadowOpacity: 0.7, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
   botaoRot: { color: "rgba(255,255,255,0.85)", fontSize: 10, fontWeight: "700" },

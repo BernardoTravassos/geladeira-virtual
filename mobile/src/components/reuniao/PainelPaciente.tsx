@@ -1,9 +1,9 @@
 import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { fmtL, type Foco, type MetaCombinada, type ResumoDia } from "../../utils/reuniaoDados";
-import { Barra, HUD, Medidor, Pulso, Vidro } from "./hud";
-import Folha from "./Folha";
+import { fmtL, type EstadoPainel, type Foco, type MetaCombinada, type ResumoDia } from "../../utils/reuniaoDados";
+import { HUD, Pulso } from "./hud";
+import PainelCompartilhado from "./PainelCompartilhado";
 
 const TITULO_ALVO: Record<string, { icone: any; cor: string }> = {
   kcal: { icone: "zap", cor: HUD.verde },
@@ -13,37 +13,14 @@ const TITULO_ALVO: Record<string, { icone: any; cor: string }> = {
   refeicao: { icone: "coffee", cor: HUD.verde },
 };
 
-/** Painel "Meu dia" do paciente, com o mesmo visual do painel da nutricionista. */
-export default function PainelPaciente({ aberta, aoFechar, bottom, resumo, meta, foco }: {
-  aberta: boolean; aoFechar: () => void; bottom: number; resumo: ResumoDia | null; meta?: MetaCombinada; foco: Foco | null;
+/** Lado do paciente: o mesmo painel, só de leitura, que acompanha o que a nutricionista faz. */
+export default function PainelPaciente({ aberta, aoFechar, bottom, resumo, meta, estado }: {
+  aberta: boolean; aoFechar: () => void; bottom: number; resumo: ResumoDia | null; meta?: MetaCombinada; estado: EstadoPainel;
 }) {
-  const r = resumo;
-  const metaK = meta?.kcal ?? r?.metaKcal ?? 0;
-  const metaA = meta?.aguaMl ?? r?.metaAguaMl ?? 0;
+  const base = { kcal: resumo?.metaKcal ?? 0, aguaMl: resumo?.metaAguaMl ?? 0, proteina: resumo?.metaProteina ?? 0, carbo: resumo?.metaCarbo ?? 0, gordura: resumo?.metaGordura ?? 0 };
   return (
-    <Folha aberta={aberta} aoFechar={aoFechar} bottom={bottom} titulo="Meu dia">
-      {!r ? <Text style={s.nota}>Carregando seus números…</Text> : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 16 }}>
-          <View style={s.linha}>
-            <Medidor icone="zap" rotulo="Calorias" valor={r.kcal.toLocaleString("pt-BR")} meta={metaK.toLocaleString("pt-BR")} un="kcal" cor={r.kcal > metaK ? HUD.rosa : HUD.verde} destaque={foco?.alvo === "kcal"} />
-            <Medidor icone="droplet" rotulo="Água" valor={fmtL(r.aguaMl).replace(" L", "")} meta={fmtL(metaA).replace(" L", "")} un="L" cor={HUD.ciano} destaque={foco?.alvo === "agua"} />
-            <Medidor icone="activity" rotulo="Treino" valor={`${r.treinoMin}`} meta={r.treinoMin > 0 ? `${r.treinoMin}` : "30"} un="min" cor={HUD.ambar} destaque={foco?.alvo === "treino"} />
-          </View>
-          <Vidro style={{ gap: 10 }}>
-            <Barra rotulo="Proteína" atual={r.proteina} meta={r.metaProteina} cor={HUD.verde} />
-            <Barra rotulo="Carboidrato" atual={r.carbo} meta={r.metaCarbo} cor={HUD.ciano} />
-            <Barra rotulo="Gordura" atual={r.gordura} meta={r.metaGordura} cor={HUD.ambar} />
-          </Vidro>
-          {!!meta && (
-            <Vidro brilho={HUD.verde}>
-              <Text style={s.secao}>Meta combinada com sua nutricionista</Text>
-              <Text style={s.nota}>{meta.kcal?.toLocaleString("pt-BR")} kcal por dia · {fmtL(meta.aguaMl ?? 0)} de água</Text>
-            </Vidro>
-          )}
-          <Text style={s.nota}>Sua nutricionista vê este resumo durante a reunião.</Text>
-        </ScrollView>
-      )}
-    </Folha>
+    <PainelCompartilhado aberta={aberta} aoFechar={aoFechar} bottom={bottom} editavel={false} estado={estado} resumo={resumo} metasBase={base}
+      metaCombinada={meta} titulo="Meu dia · ao vivo" nomePaciente="" />
   );
 }
 
