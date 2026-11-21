@@ -46,7 +46,7 @@ export const DEV = {
    *
    * ⚠️ Desligue antes de publicar: seria mostrar dados falsos como se fossem reais.
    */
-  SIMULAR_IA_PRATO: true,
+  SIMULAR_IA_PRATO: false,
 
   /**
    * Preenche os dias passados do Histórico com dados de EXEMPLO, para o painel

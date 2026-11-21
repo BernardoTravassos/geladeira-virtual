@@ -20,6 +20,7 @@ import { interpretarNumero, lerNumero } from "../utils/numeros";
 import { analisarPrato, AlimentoReconhecido, descreverFalhaDeRede, getProfile } from "../services/api";
 import { calcularMetas, PerfilApi } from "../utils/nutricao";
 import { avaliarRefeicao } from "../utils/avaliacao";
+import ConfirmarReconhecimento from "../components/ConfirmarReconhecimento";
 
 const REGRA_GRAMAS = { artigoRotulo: "A quantidade", min: 1, max: 2000, unidade: "g", casas: 0 };
 
@@ -67,6 +68,8 @@ export default function RefeicaoScreen({ navigation, route }: any) {
   const [kcalOutras, setKcalOutras] = useState(0);
   const [analisando, setAnalisando] = useState(false);
   const [erroAnalise, setErroAnalise] = useState("");
+  // O que a IA reconheceu, aguardando a pessoa conferir ("Está certo" / "Editar") antes de entrar no prato.
+  const [reconhecidos, setReconhecidos] = useState<{ lista: AlimentoReconhecido[]; confianca: "baixa" | "media" | "alta" } | null>(null);
   const [categoria, setCategoria] = useState<Categoria | "meus">("carboidratos");
   // Alimentos que a pessoa criou (não estão no catálogo).
   const [meus, setMeus] = useState<Alimento[]>([]);
@@ -191,22 +194,6 @@ export default function RefeicaoScreen({ navigation, route }: any) {
     setIdsDaFoto([]);
   }
 
-  /** Um alimento reconhecido vira item do prato: do catálogo, se o nome for igual; senão, com os valores da IA. */
-  function itemDaFoto(a: AlimentoReconhecido, i: number): ItemPrato {
-    const igual = ALIMENTOS.find((x) => normalizar(x.nome) === normalizar(a.nome));
-    if (igual) return { alimentoId: igual.id, gramas: 100 };
-    const id = `foto-${Date.now()}-${i}`;
-    return {
-      alimentoId: id,
-      gramas: 100,
-      personalizado: {
-        id, nome: a.nome, categoria: "pratos", porcaoPadrao: 100,
-        kcal: a.calorias_100g, proteina: a.proteina_100g, carbo: a.carboidratos_100g, gordura: a.gordura_100g,
-        personalizado: true,
-      },
-    };
-  }
-
   async function analisar(uri: string) {
     setAnalisando(true);
     setErroAnalise("");
@@ -216,21 +203,12 @@ export default function RefeicaoScreen({ navigation, route }: any) {
         setErroAnalise("Não identificamos comida nesta foto. Tente outra ou marque os alimentos abaixo.");
         return;
       }
-      // Os alimentos reconhecidos entram no prato com 100 g cada: a pessoa ajusta quanto comeu.
-      const novos = r.alimentos.map((a, i) => itemDaFoto(a, i));
-      setEstimativa(undefined);
-      setIdsDaFoto(novos.map((n) => n.alimentoId));
-      setItens((atual) => {
-        const chaves = (l: ItemPrato[]) => JSON.stringify(l.map((i) => [i.alimentoId, i.gramas]));
-        // Veio do plano ("Ajustar o que comi") e a pessoa não mexeu? A foto substitui o prato do plano.
-        // Uma foto nova também substitui o que a foto anterior havia reconhecido.
-        const base =
-          itensIniciais?.length && chaves(atual) === chaves(itensIniciais)
-            ? []
-            : atual.filter((i) => !idsDaFoto.includes(i.alimentoId) && !i.alimentoId.startsWith("foto-"));
-        const jaTem = new Set(base.map((i) => i.alimentoId));
-        return [...base, ...novos.filter((n) => !jaTem.has(n.alimentoId))];
-      });
+      if (r.alimentos.length === 0) {
+        setErroAnalise("Não consegui identificar os alimentos. Tente outra foto ou marque os alimentos abaixo.");
+        return;
+      }
+      // Antes de entrar no prato, a pessoa confere o que a IA viu.
+      setReconhecidos({ lista: r.alimentos, confianca: r.confianca });
     } catch (e: any) {
       const status = e?.response?.status;
       setErroAnalise(
@@ -242,6 +220,33 @@ export default function RefeicaoScreen({ navigation, route }: any) {
     } finally {
       setAnalisando(false);
     }
+  }
+
+  /** Junta o que foi confirmado ao prato: uma foto nova substitui o que a anterior havia reconhecido (e o prato do plano, se não foi mexido). */
+  function mesclar(atual: ItemPrato[], novos: ItemPrato[]): ItemPrato[] {
+    const chaves = (l: ItemPrato[]) => JSON.stringify(l.map((i) => [i.alimentoId, i.gramas]));
+    const base =
+      itensIniciais?.length && chaves(atual) === chaves(itensIniciais)
+        ? []
+        : atual.filter((i) => !idsDaFoto.includes(i.alimentoId) && !i.alimentoId.startsWith("foto-"));
+    const jaTem = new Set(base.map((i) => i.alimentoId));
+    return [...base, ...novos.filter((n) => !jaTem.has(n.alimentoId))];
+  }
+
+  function adicionarConfirmados(novos: ItemPrato[]) {
+    setEstimativa(undefined);
+    setIdsDaFoto(novos.map((n) => n.alimentoId));
+    setItens((atual) => mesclar(atual, novos));
+    setReconhecidos(null);
+  }
+
+  async function salvarConfirmados(novos: ItemPrato[]) {
+    const proximos = mesclar(itens, novos);
+    setReconhecidos(null);
+    await salvarRefeicao(chave, { itens: proximos, fotoUri, registradoEm: new Date().toISOString() });
+    const kcal = Math.round(totaisDoRegistro({ itens: proximos }).kcal);
+    feedback.sucesso(`${nome} salvo!`, `${kcal} kcal registradas`, { atraso: 450 });
+    navigation.goBack();
   }
 
   async function escolherDaGaleria() {
@@ -376,6 +381,16 @@ export default function RefeicaoScreen({ navigation, route }: any) {
 
   return (
     <View style={styles.screen}>
+      <ConfirmarReconhecimento
+        visivel={reconhecidos !== null}
+        fotoUri={fotoUri}
+        reconhecidos={reconhecidos?.lista ?? []}
+        confianca={reconhecidos?.confianca ?? "media"}
+        catalogo={[...ALIMENTOS, ...meusVisiveis]}
+        aoSalvar={salvarConfirmados}
+        aoAdicionar={adicionarConfirmados}
+        aoCancelar={() => setReconhecidos(null)}
+      />
       <View style={styles.topo}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.voltar} accessibilityLabel="Voltar">
           <Feather name="arrow-left" size={20} color={colors.primary} />
