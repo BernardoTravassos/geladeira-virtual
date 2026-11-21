@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, PermissionsAndroid, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { PermissionsAndroid, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,6 +7,7 @@ import { gravarConsulta, tokenDaReuniao } from "../services/nutri";
 import { chaveData } from "../utils/dia";
 import { codificar, decodificar, fmtL, resumoDoDia, TOPICO, type EstadoPainel, type Fechamento, type Mensagem, type MetaCombinada, type ResumoDia } from "../utils/reuniaoDados";
 import { Chip, HUD, Vidro } from "../components/reuniao/hud";
+import Ladrilho from "../components/reuniao/Ladrilho";
 import PainelNutri, { NotasNutri } from "../components/reuniao/PainelNutri";
 import PainelPaciente, { AvisoDaNutri } from "../components/reuniao/PainelPaciente";
 import ReuniaoJitsi from "./ReuniaoJitsi";
@@ -48,6 +49,7 @@ const PAINEL_INICIAL: EstadoPainel = { aberto: false, aba: "hoje" };
 
 function ReuniaoNativa({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
+  const { height: alturaTela } = useWindowDimensions(); // hooks ficam sempre antes dos returns condicionais
   const { vinculoId, perfil } = route.params as { vinculoId: string; nome?: string; perfil?: any };
   const { Room, RoomEvent, Track, VideoTrack, AudioSession } = LK!;
 
@@ -100,7 +102,7 @@ function ReuniaoNativa({ route, navigation }: any) {
         setDados({ papel: d.papel, pacienteId: d.pacienteId, nomeNutri: d.nomeNutri, nomePaciente: d.nomePaciente });
 
         [RoomEvent.ParticipantConnected, RoomEvent.ParticipantDisconnected, RoomEvent.TrackSubscribed, RoomEvent.TrackUnsubscribed,
-          RoomEvent.TrackMuted, RoomEvent.TrackUnmuted, RoomEvent.LocalTrackPublished, RoomEvent.LocalTrackUnpublished].forEach((e) => room.on(e, bump));
+          RoomEvent.TrackMuted, RoomEvent.TrackUnmuted, RoomEvent.LocalTrackPublished, RoomEvent.LocalTrackUnpublished, RoomEvent.ActiveSpeakersChanged].forEach((e) => room.on(e, bump));
         room.on(RoomEvent.Disconnected, () => { if (vivo) setFase((f) => (f === "erro" ? f : "encerrada")); });
         room.on(RoomEvent.DataReceived, (payload: Uint8Array, _p: any, _k: any, topico?: string) => {
           if (!vivo || (topico && topico !== TOPICO)) return;
@@ -272,28 +274,21 @@ function ReuniaoNativa({ route, navigation }: any) {
   }
 
   const fundoSheet = insets.bottom + ALTURA_CONTROLES;
+  const painelAbertoAgora = ehNutri ? estadoPainel.aberto || notasAbertas : painelVisivelPaciente;
+  // com o painel aberto, os ladrilhos ocupam só a metade de cima (a outra metade é do painel)
+  const areaLadrilhoBottom = painelAbertoAgora ? fundoSheet + Math.round((alturaTela - fundoSheet) * 0.5) + 8 : fundoSheet + 4;
   return (
     <View style={[styles.tela, { backgroundColor: "#0B1F17" }]}>
       <StatusBar barStyle="light-content" />
-      {videoOutro ? (
-        <VideoTrack trackRef={videoOutro as any} style={StyleSheet.absoluteFill as any} objectFit="cover" />
-      ) : (
-        <LinearGradient colors={["#1F5D3A", "#0B1F17"]} style={[StyleSheet.absoluteFill, styles.centro]}>
-          {fase === "conectando" || fase === "aguardando" ? (
-            <>
-              <View style={styles.avatarGrande}><ActivityIndicator color="#fff" /></View>
-              <Text style={styles.tituloCentro}>{fase === "conectando" ? "Entrando na sala…" : `Aguardando ${nomeOutro.split(" ")[0]}`}</Text>
-              <Text style={styles.textoCentro}>{fase === "aguardando" ? "Assim que a outra pessoa entrar, a chamada começa." : "Preparando câmera e microfone."}</Text>
-            </>
-          ) : (
-            <>
-              <View style={styles.avatarGrande}><Text style={styles.iniciais}>{iniciais(nomeOutro)}</Text></View>
-              <Text style={styles.tituloCentro}>{nomeOutro}</Text>
-              <Text style={styles.textoCentro}>Câmera desligada</Text>
-            </>
-          )}
-        </LinearGradient>
-      )}
+      {/* Ladrilhos, estilo Discord: um quadro por pessoa. Com o painel aberto, ficam lado a lado na metade de cima. */}
+      <View style={[styles.ladrilhos, { top: insets.top + 52, bottom: areaLadrilhoBottom, flexDirection: painelAbertoAgora ? "row" : "column" }]}>
+        {outro ? (
+          <Ladrilho VideoTrack={VideoTrack} videoRef={videoOutro} nome={nomeOutro} mudo={!outro.isMicrophoneEnabled} falando={!!outro.isSpeaking} compacto={painelAbertoAgora} />
+        ) : (
+          <Ladrilho VideoTrack={VideoTrack} nome={fase === "conectando" ? "a sala" : nomeOutro} aguardando compacto={painelAbertoAgora} />
+        )}
+        {local && <Ladrilho VideoTrack={VideoTrack} videoRef={videoEu} nome={dados?.papel === "nutricionista" ? dados.nomeNutri : nomePaciente} voce mudo={!micLigado} falando={!!local.isSpeaking} espelhar={frontal} compacto={painelAbertoAgora} />}
+      </View>
 
       <LinearGradient colors={["rgba(0,0,0,0.55)", "transparent"]} style={[styles.topo, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
         <View style={styles.selo}>
@@ -308,16 +303,6 @@ function ReuniaoNativa({ route, navigation }: any) {
           <Chip icone="zap" cor={HUD.verde} texto={`${resumo.kcal.toLocaleString("pt-BR")} / ${(metaCombinada?.kcal ?? resumo.metaKcal).toLocaleString("pt-BR")} kcal`} onPress={alternarPainel} />
           <Chip icone="droplet" cor={HUD.ciano} texto={`${fmtL(resumo.aguaMl)} / ${fmtL(metaCombinada?.aguaMl ?? resumo.metaAguaMl)}`} onPress={alternarPainel} />
           {resumo.treinoMin > 0 && <Chip icone="activity" cor={HUD.ambar} texto={`${resumo.treinoMin} min treino`} onPress={alternarPainel} />}
-        </View>
-      )}
-
-      {local && (
-        <View style={[styles.mini, { top: insets.top + 56 }]}>
-          {videoEu ? (
-            <VideoTrack trackRef={videoEu as any} style={StyleSheet.absoluteFill as any} objectFit="cover" mirror={frontal} zOrder={1} />
-          ) : (
-            <View style={[StyleSheet.absoluteFill, styles.centro, { backgroundColor: "#1C2B24" }]}><Feather name="video-off" size={20} color="#9FB8AA" /></View>
-          )}
         </View>
       )}
 
@@ -378,7 +363,8 @@ const criarStyles = () => StyleSheet.create({
   selo: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", backgroundColor: "rgba(0,0,0,0.4)", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16 },
   ponto: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#F5B942" },
   seloTxt: { color: "#fff", fontSize: 13, fontWeight: "700" },
-  chips: { position: "absolute", left: 14, gap: 6, alignItems: "flex-start" },
+  chips: { position: "absolute", left: 18, gap: 6, alignItems: "flex-start" },
+  ladrilhos: { position: "absolute", left: 8, right: 8, gap: 8 },
   mini: { position: "absolute", right: 14, width: 104, height: 148, borderRadius: 16, overflow: "hidden", borderWidth: 2, borderColor: "rgba(255,255,255,0.35)", backgroundColor: "#000" },
   controles: { position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", justifyContent: "center", gap: 8, paddingTop: 14 },
   botaoCol: { alignItems: "center", gap: 4 },
