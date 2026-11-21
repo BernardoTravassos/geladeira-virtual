@@ -135,7 +135,7 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
               <Text style={styles.sub}>{[p.idade ? `${p.idade} anos` : null, p.objetivo].filter(Boolean).join(" · ")}</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.reuniaoBotao} activeOpacity={0.85} accessibilityRole="button" onPress={() => navigation.navigate("Reuniao", { vinculoId: item.vinculoId, nome: "Nutricionista" })}>
+          <TouchableOpacity style={styles.reuniaoBotao} activeOpacity={0.85} accessibilityRole="button" onPress={() => navigation.navigate("Reuniao", { vinculoId: item.vinculoId, nome: "Nutricionista", perfil })}>
             <Feather name="video" size={16} color={colors.primary} />
             <Text style={styles.reuniaoBotaoTxt}>Iniciar reunião com {primeiroNome}</Text>
           </TouchableOpacity>

@@ -123,10 +123,15 @@ export async function encerrarMeuVinculo(vinculoId: string) {
 
 // ───────────────────────────── reunião por vídeo ─────────────────────────────
 
-export type SalaReuniao = { url: string; token: string; sala: string; nome: string; papel: Papel };
+export type SalaReuniao = { url: string; token: string; sala: string; nome: string; papel: Papel; pacienteId: string; nomeNutri: string; nomePaciente: string };
 
 /** Pede ao servidor o "crachá" da sala do vínculo. Só funciona para as duas pontas de um vínculo ativo. */
 export async function tokenDaReuniao(vinculoId: string): Promise<SalaReuniao> {
   const { data } = await api.post(`/meetings/${vinculoId}/token`, null, await auth());
   return data;
+}
+
+/** Guarda o resumo da reunião no diário do paciente (só o nutricionista do vínculo ativo consegue). */
+export async function gravarConsulta(pacienteId: string, dia: string, resumo: object) {
+  await api.post(`/nutritionist/patients/${pacienteId}/consultation/${dia}`, { conteudo: JSON.stringify(resumo) }, await auth());
 }

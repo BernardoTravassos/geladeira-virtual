@@ -40,6 +40,9 @@ public sealed class ReuniaoController(GeladeiraContext banco, ConfiguracaoApp co
             ? await banco.Nutricionistas.Where(n => n.UsuarioId == eu).Select(n => n.Nome).FirstOrDefaultAsync() ?? "Nutricionista"
             : await banco.Perfis.Where(p => p.UsuarioId == eu).Select(p => p.Nome).FirstOrDefaultAsync() ?? "Paciente";
 
+        var pacienteId = vinculo.PacienteId;
+        var nomeNutri = await banco.Nutricionistas.Where(n => n.UsuarioId == vinculo.NutricionistaId).Select(n => n.Nome).FirstOrDefaultAsync() ?? "Nutricionista";
+        var nomePaciente = await banco.Perfis.Where(p => p.UsuarioId == pacienteId).Select(p => p.Nome).FirstOrDefaultAsync() ?? "Paciente";
         var sala = $"vinculo-{vinculo.Id:N}";
         var agora = DateTime.UtcNow;
         var descritor = new SecurityTokenDescriptor
@@ -63,6 +66,6 @@ public sealed class ReuniaoController(GeladeiraContext banco, ConfiguracaoApp co
             SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(lk.ApiSecret)), SecurityAlgorithms.HmacSha256),
         };
         var token = new JsonWebTokenHandler().CreateToken(descritor);
-        return Ok(new { url = lk.Url, token, sala, nome, papel = ehNutri ? "nutricionista" : "paciente" });
+        return Ok(new { url = lk.Url, token, sala, nome, papel = ehNutri ? "nutricionista" : "paciente", pacienteId, nomeNutri, nomePaciente });
     }
 }

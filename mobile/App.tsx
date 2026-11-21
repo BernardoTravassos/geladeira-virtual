@@ -41,7 +41,7 @@ export type RootStackParamList = {
   Perfil: undefined;
   Smartwatch: undefined;
   Lembretes: undefined;
-  Reuniao: { vinculoId: string; nome?: string };
+  Reuniao: { vinculoId: string; nome?: string; perfil?: any };
   Treino: undefined;
   Receita: { id: string };
   Receitas: undefined;

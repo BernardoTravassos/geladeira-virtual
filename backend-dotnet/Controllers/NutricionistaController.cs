@@ -152,6 +152,48 @@ public sealed class NutricionistaController(GeladeiraContext banco) : Controller
         return NoContent();
     }
 
+    /// <summary>
+    /// Guarda o resumo de uma reunião (notas, metas combinadas, o que foi mostrado) no diário do
+    /// paciente, como tipo "consulta" do dia. Várias reuniões no mesmo dia se somam numa lista, e o
+    /// paciente lê tudo pelo próprio GET /diary. Corpo: {"conteudo": "<json de uma consulta>"}.
+    /// </summary>
+    [HttpPost("patients/{pacienteId:guid}/consultation/{data}")]
+    public async Task<IActionResult> GravarConsulta(Guid pacienteId, string data, [FromBody] GravarPlanoRequest req)
+    {
+        if (!await EhNutricionista()) return Forbid();
+        if (!await VinculoAtivoCom(pacienteId)) return NotFound(new { error = "Paciente não encontrado." });
+        if (!DateOnly.TryParseExact(data, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dia))
+            return BadRequest(new { error = "Data inválida (use AAAA-MM-DD)." });
+        if (string.IsNullOrWhiteSpace(req.Conteudo) || req.Conteudo.Length > 16 * 1024)
+            return BadRequest(new { error = "Resumo ausente ou grande demais." });
+
+        System.Text.Json.Nodes.JsonNode? nova;
+        try { nova = System.Text.Json.Nodes.JsonNode.Parse(req.Conteudo); }
+        catch (System.Text.Json.JsonException) { return BadRequest(new { error = "Resumo não é um JSON válido." }); }
+        if (nova is not System.Text.Json.Nodes.JsonObject) return BadRequest(new { error = "Resumo inválido." });
+
+        var registro = await banco.RegistrosDia.SingleOrDefaultAsync(r => r.UsuarioId == pacienteId && r.Tipo == "consulta" && r.Data == dia);
+        var lista = new System.Text.Json.Nodes.JsonArray();
+        if (registro is not null)
+        {
+            try { if (System.Text.Json.Nodes.JsonNode.Parse(registro.Conteudo) is System.Text.Json.Nodes.JsonArray antiga) lista = antiga; }
+            catch (System.Text.Json.JsonException) { }
+        }
+        if (lista.Count >= 20) return BadRequest(new { error = "Reuniões demais para um dia." });
+        nova["nutricionistaId"] = UsuarioId.ToString();
+        lista.Add(nova);
+
+        if (registro is null)
+        {
+            registro = new RegistroDia { UsuarioId = pacienteId, Tipo = "consulta", Data = dia };
+            banco.RegistrosDia.Add(registro);
+        }
+        registro.Conteudo = lista.ToJsonString();
+        registro.AtualizadoEm = Relogio.Agora;
+        await banco.SaveChangesAsync();
+        return NoContent();
+    }
+
     /// <summary>Cancela um convite pendente ou encerra o acompanhamento de um paciente.</summary>
     [HttpDelete("links/{id:guid}")]
     public async Task<IActionResult> Encerrar(Guid id)
