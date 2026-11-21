@@ -57,7 +57,7 @@ export async function restaurarEdicao(chave: string): Promise<Edicoes> {
 
 // ── Vínculo e prescrição, do lado do paciente ─────────────────────────────────
 
-export type VinculoNutri = { nutricionista: { nome: string; crn: string }; prescricao: Edicoes };
+export type VinculoNutri = { vinculoId?: string; nutricionista: { nome: string; crn: string }; prescricao: Edicoes };
 
 function lerPrescricao(conteudo?: string | null): Edicoes {
   try {
@@ -90,7 +90,7 @@ export async function sincronizarVinculo(): Promise<VinculoNutri | null> {
       await AsyncStorage.removeItem(CHAVE_VINCULO);
       return null;
     }
-    const resultado: VinculoNutri = { nutricionista: v.nutricionista, prescricao: lerPrescricao(v.plano?.conteudo) };
+    const resultado: VinculoNutri = { vinculoId: v.vinculoId, nutricionista: v.nutricionista, prescricao: lerPrescricao(v.plano?.conteudo) };
     await AsyncStorage.setItem(CHAVE_VINCULO, JSON.stringify(resultado));
     return resultado;
   } catch {

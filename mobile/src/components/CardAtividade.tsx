@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { sombra } from "../theme/colors";
 import BarraTeclado, { ID_BARRA_TECLADO } from "./BarraTeclado";
 import { useFeedback } from "./Feedback";
-import { useChaveDoDia } from "../utils/dia";
+import { useChaveDoDia, chaveData } from "../utils/dia";
 import {
   adicionarTreinoManual, estimarKcalTreino, formatarDuracao, lerSaudeDoDia, removerTreinoManual, SaudeDoDia, TIPOS_TREINO, Treino,
 } from "../utils/saude";
@@ -21,11 +21,15 @@ type Props = {
   pesoKg: number;
   consumidasKcal: number;
   onConectar: () => void;
+  /** Avisa quando um treino é salvo ou removido, para a tela atualizar a semana. */
+  onMudou?: () => void;
+  /** Dia mostrado e editado. Sem isso, é hoje. */
+  data?: Date;
 };
 
 const ROTULO_ORIGEM = { manual: "Manual", smartwatch: "Smartwatch", gymrats: "GymRats" } as const;
 
-export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Props) {
+export default function CardAtividade({ pesoKg, consumidasKcal, onConectar, onMudou, data }: Props) {
   const colors = useCores();
   const styles = useMemo(() => criarStyles(colors), [colors]);
   const VERDE = colors.sucessoTexto;
@@ -33,6 +37,10 @@ export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Pr
   const feedback = useFeedback();
   const chaveDia = useChaveDoDia(); // vira à meia-noite e zera o dia
   const [saude, setSaude] = useState<SaudeDoDia | null>(null);
+  const hojeData = useMemo(() => new Date(), [chaveDia]);
+  const dia = data ?? hojeData;
+  const ehHoje = chaveData(dia) === chaveData(hojeData);
+  const rotuloDia = ehHoje ? "hoje" : `em ${dia.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" })}`;
 
   const [aberto, setAberto] = useState(false);
   const [tipo, setTipo] = useState("Musculação");
@@ -41,8 +49,8 @@ export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Pr
   const [erro, setErro] = useState("");
 
   const carregar = useCallback(() => {
-    lerSaudeDoDia(pesoKg).then(setSaude).catch(() => {});
-  }, [pesoKg]);
+    lerSaudeDoDia(pesoKg, dia).then(setSaude).catch(() => {});
+  }, [pesoKg, chaveData(dia)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useFocusEffect(useCallback(() => { carregar(); }, [carregar, chaveDia]));
   useEffect(() => { carregar(); }, [carregar]);
@@ -60,18 +68,19 @@ export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Pr
   async function salvar() {
     if (totalMin < 5) return setErro("O treino precisa ter pelo menos 5 minutos.");
     if (totalMin > 600) return setErro("A duração máxima é de 10 horas.");
-    const novo = await adicionarTreinoManual(tipo, totalMin, pesoKg);
+    const novo = await adicionarTreinoManual(tipo, totalMin, pesoKg, dia);
     setAberto(false);
     setErro("");
     carregar();
+    onMudou?.();
     feedback.sucesso("Treino registrado!", `${novo.tipo} · ${formatarDuracao(novo.minutos)} · ≈ ${novo.kcal} kcal`);
   }
 
   function confirmarRemocao(t: Treino) {
     if (t.origem !== "manual") return; // treinos do relógio não se apagam por aqui
-    Alert.alert("Remover treino", `Remover "${t.tipo}" de hoje?`, [
+    Alert.alert("Remover treino", `Remover "${t.tipo}" ${ehHoje ? "de hoje" : "deste dia"}?`, [
       { text: "Cancelar", style: "cancel" },
-      { text: "Remover", style: "destructive", onPress: async () => { await removerTreinoManual(t.id); carregar(); } },
+      { text: "Remover", style: "destructive", onPress: async () => { await removerTreinoManual(t.id, dia); carregar(); onMudou?.(); } },
     ]);
   }
 
@@ -85,9 +94,9 @@ export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Pr
           <Feather name="activity" size={18} color={treinou ? VERDE : colors.primary} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.titulo}>Atividade de hoje</Text>
+          <Text style={styles.titulo}>{ehHoje ? "Atividade de hoje" : `Atividade ${rotuloDia}`}</Text>
           <Text style={[styles.status, treinou && { color: VERDE, fontWeight: "700" }]}>
-            {treinou ? "✓ Você treinou hoje" : "Ainda sem treino hoje"}
+            {treinou ? `✓ Você treinou ${ehHoje ? "hoje" : "neste dia"}` : `Ainda sem treino ${ehHoje ? "hoje" : "neste dia"}`}
           </Text>
         </View>
       </View>
@@ -112,10 +121,10 @@ export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Pr
             <Text style={styles.numeroValor}>{gastas.toLocaleString("pt-BR")}</Text>
             <Text style={styles.numeroRotulo}>kcal gastas</Text>
           </View>
-          <View style={styles.numero}>
+          {ehHoje && <View style={styles.numero}>
             <Text style={styles.numeroValor}>{Math.round(consumidasKcal).toLocaleString("pt-BR")}</Text>
             <Text style={styles.numeroRotulo}>kcal consumidas</Text>
-          </View>
+          </View>}
         </View>
       ) : (
         <TouchableOpacity style={styles.conectar} onPress={onConectar} activeOpacity={0.8} accessibilityRole="button">
@@ -127,7 +136,7 @@ export default function CardAtividade({ pesoKg, consumidasKcal, onConectar }: Pr
 
       <TouchableOpacity style={styles.botao} onPress={() => { setErro(""); setAberto(true); }} activeOpacity={0.85} accessibilityRole="button">
         <Feather name="plus" size={16} color="#fff" />
-        <Text style={styles.botaoTxt}>Treinei hoje</Text>
+        <Text style={styles.botaoTxt}>{ehHoje ? "Treinei hoje" : "Treinei neste dia"}</Text>
       </TouchableOpacity>
 
       <Modal visible={aberto} transparent animationType="slide" onRequestClose={() => setAberto(false)}>

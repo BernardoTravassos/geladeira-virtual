@@ -6,9 +6,11 @@ import BarraInferior from "../components/BarraInferior";
 import { useFeedback } from "../components/Feedback";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert,
-  KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback,
+  KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback, LayoutAnimation, UIManager,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) UIManager.setLayoutAnimationEnabledExperimental(true);
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -118,6 +120,11 @@ export default function PerfilScreen({ navigation }: any) {
   const metas = calcularMetas(perfil);
   const metaAgua = calcularMetaAguaMl(perfil);
   const [detalhesAbertos, setDetalhesAbertos] = useState(false);
+  const [dadosAbertos, setDadosAbertos] = useState(false);
+  function alternarDados() {
+    LayoutAnimation.configureNext(LayoutAnimation.create(220, "easeInEaseOut", "opacity"));
+    setDadosAbertos((v) => !v);
+  }
   const iniciais = (perfil?.nome ?? email ?? "?").trim().split(/\s+/).slice(0, 2).map((x) => x[0]?.toUpperCase()).join("") || "?";
 
   // ───────────── edição de um campo ─────────────
@@ -240,9 +247,26 @@ export default function PerfilScreen({ navigation }: any) {
           <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
         ) : (
           <View style={styles.corpo}>
-            <Text style={styles.secao}>Dados pessoais</Text>
-            <View style={styles.card}>
-              {CAMPOS.map((c, i) => (
+            <View style={[styles.card, { overflow: "hidden" }]}>
+              <TouchableOpacity
+                style={[styles.linha, dadosAbertos && styles.linhaDivisor]}
+                activeOpacity={0.7}
+                onPress={alternarDados}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: dadosAbertos }}
+                accessibilityLabel="Dados pessoais"
+              >
+                <View style={styles.icone}><Feather name="user" size={16} color={colors.primary} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.valor}>Dados pessoais</Text>
+                  <Text style={styles.rotulo} numberOfLines={1}>
+                    {dadosAbertos ? "Toque em um dado para editar" : [perfil?.nome, perfil?.idade ? `${perfil.idade} anos` : null].filter(Boolean).join(" · ") || "Toque para ver"}
+                  </Text>
+                </View>
+                <Feather name={dadosAbertos ? "chevron-up" : "chevron-down"} size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+
+              {dadosAbertos && CAMPOS.map((c, i) => (
                 <TouchableOpacity
                   key={c.chave}
                   style={[styles.linha, i < CAMPOS.length - 1 && styles.linhaDivisor]}

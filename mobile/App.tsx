@@ -18,6 +18,7 @@ import PerfilScreen from "./src/screens/PerfilScreen";
 import ReceitaScreen from "./src/screens/ReceitaScreen";
 import SmartwatchScreen from "./src/screens/SmartwatchScreen";
 import LembretesScreen from "./src/screens/LembretesScreen";
+import ReuniaoScreen from "./src/screens/ReuniaoScreen";
 import TreinoScreen from "./src/screens/TreinoScreen";
 import ReceitasScreen from "./src/screens/ReceitasScreen";
 import TransicaoLogo, { TransicaoLogoRef } from "./src/components/TransicaoLogo";
@@ -40,6 +41,7 @@ export type RootStackParamList = {
   Perfil: undefined;
   Smartwatch: undefined;
   Lembretes: undefined;
+  Reuniao: { vinculoId: string; nome?: string };
   Treino: undefined;
   Receita: { id: string };
   Receitas: undefined;
@@ -123,6 +125,7 @@ function Principal() {
         <Stack.Screen name="Perfil" component={PerfilScreen} />
         <Stack.Screen name="Smartwatch" component={SmartwatchScreen} />
         <Stack.Screen name="Lembretes" component={LembretesScreen} />
+        <Stack.Screen name="Reuniao" component={ReuniaoScreen} options={{ animation: "slide_from_bottom" }} />
         <Stack.Screen name="Treino" component={TreinoScreen} />
         <Stack.Screen name="Receita" component={ReceitaScreen} />
         <Stack.Screen name="Receitas" component={ReceitasScreen} />

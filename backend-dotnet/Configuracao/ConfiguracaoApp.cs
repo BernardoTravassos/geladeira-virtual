@@ -14,6 +14,13 @@ public sealed class ConfiguracaoApp
     /// <summary>Opcional por enquanto: só será obrigatória quando /meals/generate existir.</summary>
     public string? AnthropicApiKey { get; init; }
 
+    /// <summary>
+    /// Videochamada (LiveKit). Nulo quando LIVEKIT_URL, LIVEKIT_API_KEY ou
+    /// LIVEKIT_API_SECRET faltam: a API sobe normalmente e só a reunião fica
+    /// indisponível, com mensagem clara.
+    /// </summary>
+    public ConfiguracaoLiveKit? LiveKit { get; init; }
+
     /// <summary>Origens permitidas para CORS. Vazio = nenhuma (o app nativo não é afetado).</summary>
     public string[] CorsOrigins { get; init; } = [];
 
@@ -63,11 +70,21 @@ public sealed class ConfiguracaoApp
         CorsOrigins = (config["CORS_ORIGINS"] ?? "")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
         Email = CarregarEmail(config),
+        LiveKit = CarregarLiveKit(config),
         ConfiarNoProxy = string.Equals(config["TRUST_PROXY"]?.Trim(), "true", StringComparison.OrdinalIgnoreCase),
         MostrarErros = !string.Equals(
             Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
             "Production", StringComparison.OrdinalIgnoreCase),
     };
+
+    private static ConfiguracaoLiveKit? CarregarLiveKit(IConfiguration config)
+    {
+        var url = config["LIVEKIT_URL"]?.Trim();
+        var chave = config["LIVEKIT_API_KEY"]?.Trim();
+        var segredo = config["LIVEKIT_API_SECRET"]?.Trim();
+        if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(chave) || string.IsNullOrEmpty(segredo)) return null;
+        return new ConfiguracaoLiveKit(url, chave, segredo);
+    }
 
     private static ConfiguracaoEmail? CarregarEmail(IConfiguration config)
     {
@@ -141,3 +158,6 @@ public sealed class ConfiguracaoApp
         return valor;
     }
 }
+
+/// <summary>Endereço do servidor LiveKit (wss://...) e o par de chaves que assina os tokens de sala.</summary>
+public sealed record ConfiguracaoLiveKit(string Url, string ApiKey, string ApiSecret);

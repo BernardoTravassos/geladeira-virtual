@@ -120,3 +120,13 @@ export async function aceitarConvite(codigo: string): Promise<MeuNutricionista["
 export async function encerrarMeuVinculo(vinculoId: string) {
   await api.delete(`/links/${vinculoId}`, await auth());
 }
+
+// ───────────────────────────── reunião por vídeo ─────────────────────────────
+
+export type SalaReuniao = { url: string; token: string; sala: string; nome: string; papel: Papel };
+
+/** Pede ao servidor o "crachá" da sala do vínculo. Só funciona para as duas pontas de um vínculo ativo. */
+export async function tokenDaReuniao(vinculoId: string): Promise<SalaReuniao> {
+  const { data } = await api.post(`/meetings/${vinculoId}/token`, null, await auth());
+  return data;
+}

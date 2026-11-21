@@ -1,8 +1,8 @@
 import { useCores } from "../theme/tema";
 import type { Cores } from "../theme/colors";
-import React, { useCallback, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import BarraInferior from "../components/BarraInferior";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -16,6 +16,37 @@ import { useChaveDoDia } from "../utils/dia";
 
 const DIAS = ["D", "S", "T", "Q", "Q", "S", "S"];
 
+/** A bolinha do dia: quando o treino é marcado, ela enche de verde e o "✓" salta no lugar. */
+function BolhaDia({ treinou, hoje, selecionada, styles }: { treinou: boolean; hoje: boolean; selecionada: boolean; styles: any }) {
+  const anterior = useRef(treinou);
+  const escala = useRef(new Animated.Value(1)).current;
+  const check = useRef(new Animated.Value(treinou ? 1 : 0)).current;
+  useEffect(() => {
+    if (treinou && !anterior.current) {
+      check.setValue(0);
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(escala, { toValue: 1.25, duration: 140, useNativeDriver: true }),
+          Animated.spring(escala, { toValue: 1, friction: 4, tension: 160, useNativeDriver: true }),
+        ]),
+        Animated.spring(check, { toValue: 1, friction: 4, tension: 140, delay: 80, useNativeDriver: true }),
+      ]).start();
+    } else if (!treinou) {
+      check.setValue(0);
+    }
+    anterior.current = treinou;
+  }, [treinou, escala, check]);
+  return (
+    <Animated.View style={[styles.bolha, treinou && styles.bolhaTreinou, hoje && !treinou && styles.bolhaHoje, selecionada && styles.bolhaSel, { transform: [{ scale: escala }] }]}>
+      {treinou && (
+        <Animated.View style={{ opacity: check, transform: [{ scale: check }] }}>
+          <Feather name="check" size={16} color="#fff" />
+        </Animated.View>
+      )}
+    </Animated.View>
+  );
+}
+
 export default function TreinoScreen({ navigation }: any) {
   const colors = useCores();
   const styles = useMemo(() => criarStyles(colors), [colors]);
@@ -23,6 +54,8 @@ export default function TreinoScreen({ navigation }: any) {
   const chaveDia = useChaveDoDia();
   const [pesoKg, setPesoKg] = useState(70);
   const [consumidas, setConsumidas] = useState(0);
+  const [diaSel, setDiaSel] = useState(6); // posição na fileira de 7 dias; 6 = hoje
+  const [versao, setVersao] = useState(0); // sobe quando um treino é salvo/removido, para a semana recarregar
   const [semana, setSemana] = useState<{ data: Date; saude: SaudeDoDia }[]>([]);
 
   useFocusEffect(
@@ -41,7 +74,7 @@ export default function TreinoScreen({ navigation }: any) {
         setSemana(datas.map((data, i) => ({ data, saude: saude[i] })));
       })();
       return () => { ativo = false; };
-    }, [chaveDia]),
+    }, [chaveDia, versao]),
   );
 
   const treinosNaSemana = semana.filter((d) => d.saude.treinou).length;
@@ -64,19 +97,18 @@ export default function TreinoScreen({ navigation }: any) {
         </LinearGradient>
 
         <View style={styles.corpo}>
-          <CardAtividade pesoKg={pesoKg} consumidasKcal={consumidas} onConectar={() => navigation.navigate("Smartwatch")} />
+          <CardAtividade data={semana[diaSel]?.data} pesoKg={pesoKg} consumidasKcal={consumidas} onConectar={() => navigation.navigate("Smartwatch")} onMudou={() => setVersao((v) => v + 1)} />
 
           <Text style={styles.secao}>Últimos 7 dias</Text>
+          <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: -8 }}>Toque em um dia para ver ou registrar o treino dele.</Text>
           <View style={[styles.card, styles.semana]}>
             {semana.map(({ data, saude }, i) => {
               const hoje = i === semana.length - 1;
               return (
-                <View key={i} style={styles.dia}>
-                  <View style={[styles.bolha, saude.treinou && styles.bolhaTreinou, hoje && !saude.treinou && styles.bolhaHoje]}>
-                    {saude.treinou && <Feather name="check" size={15} color="#fff" />}
-                  </View>
+                <TouchableOpacity key={i} style={styles.dia} activeOpacity={0.7} onPress={() => setDiaSel(i)} accessibilityRole="button" accessibilityLabel={`Treino de ${data.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric" })}`}>
+                  <BolhaDia treinou={saude.treinou} hoje={hoje} selecionada={i === diaSel} styles={styles} />
                   <Text style={[styles.diaTxt, hoje && { color: colors.textPrimary, fontWeight: "800" }]}>{DIAS[data.getDay()]}</Text>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
@@ -120,6 +152,7 @@ const criarStyles = (colors: Cores) => StyleSheet.create({
   dia: { alignItems: "center", gap: 8 },
   bolha: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.background, borderWidth: 1.5, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   bolhaTreinou: { backgroundColor: "#1BAF7A", borderColor: "#1BAF7A" },
+  bolhaSel: { borderWidth: 2.5, borderColor: colors.primary },
   bolhaHoje: { borderColor: colors.primary },
   diaTxt: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
   atalho: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },

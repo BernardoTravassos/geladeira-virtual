@@ -23,7 +23,8 @@ import { useCores } from "../theme/tema";
 import { sombra } from "../theme/colors";
 import type { Cores } from "../theme/colors";
 import { ORIENTACAO_NUTRICIONISTA } from "../mocks/orientacaoNutricionista";
-import { responderAssistente, SUGESTOES_ASSISTENTE, ContextoAssistente } from "../utils/assistente";
+import { useNavigation } from "@react-navigation/native";
+import { compartilharReuniao } from "../utils/reuniao";
 
 /**
  * ⚠️ MENSAGENS DE DEMONSTRAÇÃO: ficam só neste aparelho (AsyncStorage) e a
@@ -31,7 +32,6 @@ import { responderAssistente, SUGESTOES_ASSISTENTE, ContextoAssistente } from ".
  * armazenamento local por um POST na API e a lista vira um GET.
  */
 const CHAVE = "@geladeira:chatNutri";
-const CHAVE_BOT = "@geladeira:chatBot";
 const CHAVE_POS = "@geladeira:posChatNutri";
 
 const TAM = 52; // diâmetro do botão
@@ -44,12 +44,8 @@ const X_DO_RODAPE = 200;
 // Fica fora do componente para continuar escondido ao navegar entre telas.
 let ocultoNaSessao = false;
 
-type Aba = "nutri" | "bot";
+type Aba = "nutri" | "reuniao";
 type Mensagem = { id: string; de: "eu" | "nutri" | "bot"; texto: string; quando: string };
-
-const BOAS_VINDAS_BOT: Mensagem[] = [
-  { id: "b1", de: "bot", texto: "Oi! Eu sou o assistente da Geladeira Virtual. Respondo dúvidas rápidas sobre alimentação. Não substituo a sua nutricionista. 🥗", quando: "agora" },
-];
 
 const INICIAIS: Mensagem[] = [
   { id: "m1", de: "nutri", texto: "Oi, Bernardo! Ajustei seu plano esta semana. Dá uma olhada na orientação aqui na Home.", quando: "ter 10:12" },
@@ -62,22 +58,15 @@ function agora() {
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-const CONTEXTO_PADRAO: ContextoAssistente = {
-  calorias: ORIENTACAO_NUTRICIONISTA.metas.calorias,
-  proteina: ORIENTACAO_NUTRICIONISTA.metas.proteina,
-  aguaMl: ORIENTACAO_NUTRICIONISTA.metas.aguaMl,
-};
-
-export default function ChatNutri({ contexto = CONTEXTO_PADRAO, nutricionista }: { contexto?: ContextoAssistente; nutricionista?: { nome: string; crn: string } }) {
+export default function ChatNutri({ nutricionista, vinculoId, nomePaciente }: { nutricionista?: { nome: string; crn: string }; vinculoId?: string; nomePaciente?: string }) {
   const colors = useCores();
   const styles = useMemo(() => criarStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const [aberto, setAberto] = useState(false);
   const [mensagens, setMensagens] = useState<Mensagem[]>(INICIAIS);
   const [texto, setTexto] = useState("");
   const [aba, setAba] = useState<Aba>("nutri");
-  const [mensagensBot, setMensagensBot] = useState<Mensagem[]>(BOAS_VINDAS_BOT);
-  const [digitando, setDigitando] = useState(false);
   const lista = useRef<FlatList<Mensagem>>(null);
   const entrada = useRef(new Animated.Value(0)).current;
 
@@ -172,12 +161,6 @@ export default function ChatNutri({ contexto = CONTEXTO_PADRAO, nutricionista }:
   }, []);
 
   useEffect(() => {
-    AsyncStorage.getItem(CHAVE_BOT)
-      .then((v) => v && setMensagensBot(JSON.parse(v)))
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
     if (!aberto) return;
     entrada.setValue(0);
     Animated.timing(entrada, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
@@ -185,38 +168,21 @@ export default function ChatNutri({ contexto = CONTEXTO_PADRAO, nutricionista }:
 
   const rolarAoFim = useCallback(() => setTimeout(() => lista.current?.scrollToEnd({ animated: true }), 80), []);
 
-  function enviar(textoDireto?: string) {
-    const t = (textoDireto ?? texto).trim();
-    if (!t || digitando) return;
+  function enviar() {
+    const t = texto.trim();
+    if (!t) return;
     const minha: Mensagem = { id: `m${Date.now()}`, de: "eu", texto: t, quando: `hoje ${agora()}` };
     setTexto("");
-
-    if (aba === "nutri") {
-      const proximas = [...mensagens, minha];
-      setMensagens(proximas);
-      AsyncStorage.setItem(CHAVE, JSON.stringify(proximas)).catch(() => {});
-      rolarAoFim();
-      return;
-    }
-
-    const comPergunta = [...mensagensBot, minha];
-    setMensagensBot(comPergunta);
-    setDigitando(true);
+    const proximas = [...mensagens, minha];
+    setMensagens(proximas);
+    AsyncStorage.setItem(CHAVE, JSON.stringify(proximas)).catch(() => {});
     rolarAoFim();
-    // Pequena pausa para parecer uma conversa; com a IA real, é o tempo da resposta.
-    Promise.all([responderAssistente(t, contexto), new Promise((r) => setTimeout(r, 900))])
-      .then(([resposta]) => {
-        const final = [...comPergunta, { id: `b${Date.now()}`, de: "bot" as const, texto: resposta as string, quando: `hoje ${agora()}` }];
-        setMensagensBot(final);
-        AsyncStorage.setItem(CHAVE_BOT, JSON.stringify(final.slice(-60))).catch(() => {});
-      })
-      .catch(() => {
-        setMensagensBot([...comPergunta, { id: `b${Date.now()}`, de: "bot", texto: "Não consegui responder agora. Tente de novo em instantes.", quando: `hoje ${agora()}` }]);
-      })
-      .finally(() => {
-        setDigitando(false);
-        rolarAoFim();
-      });
+  }
+
+  function entrar() {
+    if (!vinculoId) return;
+    setAberto(false);
+    navigation.navigate("Reuniao", { vinculoId, nome: nomePaciente });
   }
 
   function trocarAba(nova: Aba) {
@@ -275,12 +241,12 @@ export default function ChatNutri({ contexto = CONTEXTO_PADRAO, nutricionista }:
             ]}
           >
             <View style={styles.topo}>
-              <View style={[styles.avatar, aba === "bot" && styles.avatarBot]}>
-                {aba === "nutri" ? <Text style={styles.avatarTxt}>{n.iniciais}</Text> : <Feather name="cpu" size={20} color="#fff" />}
+              <View style={styles.avatar}>
+                <Text style={styles.avatarTxt}>{n.iniciais}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.nome}>{aba === "nutri" ? n.nome : "Assistente Geladeira"}</Text>
-                <Text style={styles.status}>{aba === "nutri" ? "Costuma responder em até 24 h" : "Respostas automáticas · dúvidas rápidas"}</Text>
+                <Text style={styles.nome}>{n.nome}</Text>
+                <Text style={styles.status}>{aba === "nutri" ? "Costuma responder em até 24 h" : "Reunião por vídeo"}</Text>
               </View>
               <TouchableOpacity onPress={() => setAberto(false)} style={styles.fechar} accessibilityLabel="Fechar">
                 <Feather name="x" size={18} color={colors.textSecondary} />
@@ -288,29 +254,58 @@ export default function ChatNutri({ contexto = CONTEXTO_PADRAO, nutricionista }:
             </View>
 
             <View style={styles.abas}>
-              {(["nutri", "bot"] as Aba[]).map((k) => (
+              {(["nutri", "reuniao"] as Aba[]).map((k) => (
                 <TouchableOpacity key={k} onPress={() => trocarAba(k)} style={[styles.aba, aba === k && styles.abaAtiva]} accessibilityRole="tab" accessibilityState={{ selected: aba === k }}>
-                  <Feather name={k === "nutri" ? "user" : "cpu"} size={13} color={aba === k ? "#fff" : colors.textSecondary} />
-                  <Text style={[styles.abaTxt, aba === k && { color: "#fff" }]}>{k === "nutri" ? "Nutricionista" : "Assistente"}</Text>
+                  <Feather name={k === "nutri" ? "message-square" : "video"} size={13} color={aba === k ? "#fff" : colors.textSecondary} />
+                  <Text style={[styles.abaTxt, aba === k && { color: "#fff" }]}>{k === "nutri" ? "Mensagens" : "Reunião"}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
+            {aba === "reuniao" ? (
+              <View style={styles.reuniao}>
+                <View style={styles.reuniaoIcone}><Feather name="video" size={28} color="#fff" /></View>
+                <Text style={styles.reuniaoTitulo}>Reunião com {n.nome}</Text>
+                {vinculoId ? (
+                  <>
+                    <Text style={styles.reuniaoTxt}>Uma sala só de vocês dois. Você e a nutricionista entram pelo mesmo botão, a qualquer hora.</Text>
+                    <View style={styles.recursos}>
+                      {[
+                        ["video", "Vídeo e áudio"],
+                        ["message-circle", "Chat na chamada"],
+                        ["monitor", "Compartilhar tela"],
+                        ["smile", "Reações e mão levantada"],
+                      ].map(([icone, rotulo]) => (
+                        <View key={rotulo} style={styles.recurso}>
+                          <Feather name={icone as any} size={13} color={colors.primary} />
+                          <Text style={styles.recursoTxt}>{rotulo}</Text>
+                        </View>
+                      ))}
+                    </View>
+                    <TouchableOpacity style={styles.entrarReuniao} onPress={entrar} activeOpacity={0.85} accessibilityRole="button">
+                      <Feather name="video" size={17} color="#fff" />
+                      <Text style={styles.entrarReuniaoTxt}>Entrar na reunião</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.linkReuniao} onPress={() => compartilharReuniao(vinculoId, "Reunião na Geladeira Virtual:").catch(() => {})} accessibilityRole="button">
+                      <Feather name="share-2" size={14} color={colors.primary} />
+                      <Text style={styles.linkReuniaoTxt}>Compartilhar o link da sala</Text>
+                    </TouchableOpacity>
+                                    <Text style={styles.reuniaoNota}>A chamada abre aqui no app. Permita câmera e microfone quando pedir.</Text>
+                  </>
+                ) : (
+                  <Text style={styles.reuniaoTxt}>A reunião fica disponível quando você estiver acompanhado por uma nutricionista. Vincule-se pelo convite dela.</Text>
+                )}
+              </View>
+            ) : (
+              <>
             <FlatList
               ref={lista}
-              data={aba === "nutri" ? mensagens : mensagensBot}
+              data={mensagens}
               keyExtractor={(m) => m.id}
               style={styles.lista}
               contentContainerStyle={{ padding: 14, gap: 8 }}
               onContentSizeChange={() => lista.current?.scrollToEnd({ animated: false })}
               keyboardShouldPersistTaps="handled"
-              ListFooterComponent={
-                aba === "bot" && digitando ? (
-                  <View style={[styles.balao, styles.dela, { marginTop: 8 }]}>
-                    <Text style={styles.balaoTxt}>digitando…</Text>
-                  </View>
-                ) : undefined
-              }
               renderItem={({ item }) => (
                 <View style={[styles.balao, item.de === "eu" ? styles.meu : styles.dela]}>
                   <Text style={[styles.balaoTxt, item.de === "eu" && { color: "#fff" }]}>{item.texto}</Text>
@@ -319,21 +314,11 @@ export default function ChatNutri({ contexto = CONTEXTO_PADRAO, nutricionista }:
               )}
             />
 
-            {aba === "bot" && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={styles.sugestoes} contentContainerStyle={{ gap: 8, paddingHorizontal: 12 }}>
-                {SUGESTOES_ASSISTENTE.map((q) => (
-                  <TouchableOpacity key={q} onPress={() => enviar(q)} style={styles.sugestao} disabled={digitando}>
-                    <Text style={styles.sugestaoTxt}>{q}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-
             <View style={styles.entrada}>
               <TextInput
                 value={texto}
                 onChangeText={setTexto}
-                placeholder={aba === "nutri" ? "Escreva para a nutricionista..." : "Pergunte ao assistente..."}
+                placeholder="Escreva para a nutricionista..."
                 placeholderTextColor={colors.textSecondary}
                 style={styles.campo}
                 multiline
@@ -341,15 +326,17 @@ export default function ChatNutri({ contexto = CONTEXTO_PADRAO, nutricionista }:
                 onFocus={rolarAoFim}
               />
               <TouchableOpacity
-                onPress={() => enviar()}
-                disabled={!texto.trim() || digitando}
-                style={[styles.enviar, (!texto.trim() || digitando) && { opacity: 0.4 }]}
+                onPress={enviar}
+                disabled={!texto.trim()}
+                style={[styles.enviar, !texto.trim() && { opacity: 0.4 }]}
                 accessibilityRole="button"
                 accessibilityLabel="Enviar"
               >
                 <Feather name="send" size={18} color="#fff" />
               </TouchableOpacity>
             </View>
+              </>
+            )}
           </Animated.View>
         </KeyboardAvoidingView>
       </Modal>
@@ -366,7 +353,19 @@ const criarStyles = (colors: Cores) =>
     popup: { backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, overflow: "hidden", maxHeight: "75%", minHeight: 360 },
     topo: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
     avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-    avatarBot: { backgroundColor: "#3F63B8" },
+    reuniao: { padding: 20, alignItems: "center", gap: 12 },
+    reuniaoIcone: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+    reuniaoTitulo: { fontSize: 17, fontWeight: "800", color: colors.textPrimary, textAlign: "center" },
+    reuniaoTxt: { fontSize: 13, color: colors.textSecondary, textAlign: "center", lineHeight: 19 },
+    recursos: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8 },
+    recurso: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: colors.fundoSuave },
+    recursoTxt: { fontSize: 12, fontWeight: "600", color: colors.textPrimary },
+    entrarReuniao: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, alignSelf: "stretch", paddingVertical: 14, borderRadius: 16, backgroundColor: colors.primary, marginTop: 4 },
+    entrarReuniaoTxt: { fontSize: 15, fontWeight: "800", color: "#fff" },
+    linkReuniao: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6 },
+    linkReuniaoTxt: { fontSize: 13, fontWeight: "700", color: colors.primary },
+    reuniaoErro: { fontSize: 12, color: "#D6455D", textAlign: "center" },
+    reuniaoNota: { fontSize: 11, color: colors.textSecondary, textAlign: "center", lineHeight: 16 },
     abas: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingTop: 10 },
     aba: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 12, backgroundColor: colors.fundoSuave },
     abaAtiva: { backgroundColor: colors.primary },

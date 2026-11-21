@@ -424,7 +424,7 @@ export default function HomeScreen({ navigation, route }: any) {
         />
       )}
 
-      <ChatNutri nutricionista={vinculo?.nutricionista} contexto={{ calorias: metas.calorias, proteina: metas.proteina, aguaMl: calcularMetaAguaMl(perfil) }} />
+      <ChatNutri nutricionista={vinculo?.nutricionista} vinculoId={vinculo?.vinculoId} nomePaciente={perfil?.nome} />
 
       <BarraInferior ativa="Home" onCamera={handleGerarCardapio} />
 

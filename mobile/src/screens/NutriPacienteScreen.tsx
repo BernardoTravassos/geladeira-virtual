@@ -135,6 +135,10 @@ export default function NutriPacienteScreen({ route, navigation }: any) {
               <Text style={styles.sub}>{[p.idade ? `${p.idade} anos` : null, p.objetivo].filter(Boolean).join(" · ")}</Text>
             </View>
           </View>
+          <TouchableOpacity style={styles.reuniaoBotao} activeOpacity={0.85} accessibilityRole="button" onPress={() => navigation.navigate("Reuniao", { vinculoId: item.vinculoId, nome: "Nutricionista" })}>
+            <Feather name="video" size={16} color={colors.primary} />
+            <Text style={styles.reuniaoBotaoTxt}>Iniciar reunião com {primeiroNome}</Text>
+          </TouchableOpacity>
           <View style={styles.pilulas}>
             <Pilula icone="target" valor={diario ? `${diario.adesao}%` : "—"} rotulo="adesão (7 dias)" styles={styles} />
             <Pilula icone="activity" valor={peso ? `${peso.toFixed(1)} kg` : "—"} rotulo="peso no perfil" styles={styles} />
@@ -420,7 +424,9 @@ const criarStyles = (colors: Cores) =>
     conteudo: { paddingTop: 0 },
     hero: { backgroundColor: colors.primary, paddingTop: 52, paddingHorizontal: 20, paddingBottom: 22, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, gap: 18 },
     heroTopo: { flexDirection: "row", alignItems: "center", gap: 12 },
-    voltar: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" },
+    reuniaoBotao: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#fff", borderRadius: 14, paddingVertical: 11, marginTop: 14 },
+  reuniaoBotaoTxt: { fontSize: 14, fontWeight: "800", color: colors.primary },
+  voltar: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" },
     avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
     avatarTxt: { fontSize: 20, fontWeight: "800", color: colors.primary },
     nome: { fontSize: 19, fontWeight: "800", color: "#fff" },
