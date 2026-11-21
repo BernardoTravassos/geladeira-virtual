@@ -15,7 +15,8 @@ export default function Folha({ aberta, aoFechar, titulo, abas, aba, aoTrocar, c
   useEffect(() => {
     Animated.timing(y, { toValue: aberta ? 1 : 0, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   }, [aberta, y]);
-  const altura = Math.round(height * 0.74);
+  // metade do espaço acima dos botões: a outra metade continua mostrando a pessoa na chamada
+  const altura = Math.round((height - bottom) * 0.5);
   return (
     <>
       {aberta && <Pressable style={[StyleSheet.absoluteFill, { bottom }]} onPress={aoFechar} accessibilityLabel="Fechar painel" />}

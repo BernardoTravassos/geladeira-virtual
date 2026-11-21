@@ -61,9 +61,9 @@ export default function PainelCompartilhado(p: Props) {
         {estado.aba === "hoje" && (
           <>
             <View style={s.linha}>
-              {alvo("kcal", <Medidor icone="zap" rotulo="Calorias" valor={kcal.toLocaleString("pt-BR")} meta={metaKcal.toLocaleString("pt-BR")} un="kcal" cor={kcal > metaKcal ? HUD.rosa : HUD.verde} tamanho={88} />)}
-              {alvo("agua", <Medidor icone="droplet" rotulo="Água" valor={fmtL(agua).replace(" L", "")} meta={fmtL(metaAgua).replace(" L", "")} un="L" cor={HUD.ciano} tamanho={88} />)}
-              {alvo("treino", <Medidor icone="activity" rotulo="Treino" valor={`${treinoMin}`} meta={treinoMin > 0 ? `${treinoMin}` : "30"} un="min" cor={HUD.ambar} tamanho={88} />)}
+              {alvo("kcal", <Medidor icone="zap" rotulo="Calorias" valor={kcal.toLocaleString("pt-BR")} meta={metaKcal.toLocaleString("pt-BR")} un="kcal" cor={kcal > metaKcal ? HUD.rosa : HUD.verde} tamanho={74} />)}
+              {alvo("agua", <Medidor icone="droplet" rotulo="Água" valor={fmtL(agua).replace(" L", "")} meta={fmtL(metaAgua).replace(" L", "")} un="L" cor={HUD.ciano} tamanho={74} />)}
+              {alvo("treino", <Medidor icone="activity" rotulo="Treino" valor={`${treinoMin}`} meta={treinoMin > 0 ? `${treinoMin}` : "30"} un="min" cor={HUD.ambar} tamanho={74} />)}
             </View>
             <Text style={s.dica}>{p.editavel ? "Toque em um indicador para apontá-lo: o paciente vê o brilho na tela dele." : "Sua nutricionista está mostrando seus números ao vivo."}</Text>
             {alvo("macros", (
