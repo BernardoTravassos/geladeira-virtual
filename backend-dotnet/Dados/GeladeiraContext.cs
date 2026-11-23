@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using GeladeiraVirtual.Api.Dados.Entidades;
 using Microsoft.EntityFrameworkCore;
@@ -129,6 +129,15 @@ public partial class GeladeiraContext : DbContext
                 .HasColumnName("tempo_disponivel");
             entity.Property(e => e.UsuarioId).HasColumnName("usuario_id");
             entity.Property(e => e.Vegano).HasColumnName("vegano");
+            entity.Property(e => e.Gestacao).HasMaxLength(20).HasColumnName("gestacao");
+            entity.Property(e => e.GorduraPct).HasPrecision(4, 1).HasColumnName("gordura_pct");
+            entity.Property(e => e.PesoMetaKg).HasPrecision(5, 1).HasColumnName("peso_meta_kg");
+            entity.Property(e => e.Ritmo).HasMaxLength(20).HasColumnName("ritmo");
+            entity.Property(e => e.RotinaDiaria).HasMaxLength(20).HasColumnName("rotina_diaria");
+            entity.Property(e => e.DiasTreino).HasColumnName("dias_treino");
+            entity.Property(e => e.MinutosTreino).HasColumnName("minutos_treino");
+            entity.Property(e => e.IntensidadeTreino).HasMaxLength(20).HasColumnName("intensidade_treino");
+            entity.Property(e => e.CondicoesSaude).HasMaxLength(200).HasColumnName("condicoes_saude");
 
             entity.HasOne(d => d.Usuario).WithOne(p => p.Perfil)
                 .HasForeignKey<Perfil>(d => d.UsuarioId)

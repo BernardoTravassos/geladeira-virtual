@@ -24,7 +24,7 @@ export async function papelAtual(): Promise<Papel> {
 /** Login que também informa o papel da conta (o servidor decide, nunca o app). */
 export async function entrar(email: string, senha: string): Promise<{ token: string; papel: Papel }> {
   if (DEV.MODO_DEMO) return { token: "token-demonstracao", papel: "paciente" };
-  const { data } = await api.post("/auth/login", { email, senha });
+  const { data } = await api.post("/auth/login", { email, senha }, { timeout: 75000 });
   return { token: data.token, papel: data.papel === "nutricionista" ? "nutricionista" : "paciente" };
 }
 

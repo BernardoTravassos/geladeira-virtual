@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using GeladeiraVirtual.Api.Autenticacao;
 using GeladeiraVirtual.Api.Contratos;
 using GeladeiraVirtual.Api.Dados;
@@ -58,6 +58,20 @@ public sealed class ProfileController(GeladeiraContext banco) : ControllerBase
         perfil.Vegano = requisicao.Vegano;
         perfil.PreferenciaPreparo = requisicao.PreferenciaPreparo;
         perfil.TempoDisponivel = requisicao.TempoDisponivel;
+        perfil.Gestacao = perfil.Sexo == "Feminino" ? requisicao.Gestacao : null;
+        perfil.GorduraPct = requisicao.GorduraPct;
+        perfil.PesoMetaKg = requisicao.PesoMetaKg;
+        perfil.Ritmo = requisicao.Ritmo;
+        perfil.RotinaDiaria = requisicao.RotinaDiaria;
+        perfil.DiasTreino = requisicao.DiasTreino;
+        perfil.MinutosTreino = requisicao.DiasTreino is > 0 ? requisicao.MinutosTreino : null;
+        perfil.IntensidadeTreino = requisicao.DiasTreino is > 0 ? requisicao.IntensidadeTreino : null;
+        var condicoes = (requisicao.CondicoesSaude ?? "")
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Where(c => PerfilRequest.CondicoesPermitidas.Contains(c))
+            .Distinct()
+            .ToList();
+        perfil.CondicoesSaude = condicoes.Count > 0 ? string.Join(", ", condicoes) : null;
         perfil.AtualizadoEm = Relogio.Agora;
 
         await banco.SaveChangesAsync();
@@ -100,6 +114,15 @@ public sealed class ProfileController(GeladeiraContext banco) : ControllerBase
         vegano = p.Vegano,
         preferencia_preparo = p.PreferenciaPreparo,
         tempo_disponivel = p.TempoDisponivel,
+        gestacao = p.Gestacao,
+        gordura_pct = p.GorduraPct?.ToString(CultureInfo.InvariantCulture),
+        peso_meta_kg = p.PesoMetaKg?.ToString(CultureInfo.InvariantCulture),
+        ritmo = p.Ritmo,
+        rotina_diaria = p.RotinaDiaria,
+        dias_treino = p.DiasTreino,
+        minutos_treino = p.MinutosTreino,
+        intensidade_treino = p.IntensidadeTreino,
+        condicoes_saude = p.CondicoesSaude,
         atualizado_em = DateTime.SpecifyKind(p.AtualizadoEm, DateTimeKind.Utc)
             .ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture),
     };

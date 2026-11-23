@@ -66,4 +66,38 @@ public sealed class PerfilRequest
     [AllowedValues("Pouco tempo", "Tempo razoável", "Bastante tempo",
         ErrorMessage = "Tempo disponível inválido")]
     public string TempoDisponivel { get; set; } = "";
+
+    // ── Perguntas que refinam o cálculo das metas. Todas opcionais: apps antigos
+    // não as enviam, e a pessoa pode pular (gordura corporal, por exemplo).
+
+    [RegularExpression("^(nao|1tri|2tri|3tri|lactante)$", ErrorMessage = "Gestação inválida")]
+    public string? Gestacao { get; set; }
+
+    [Range(3.0, 60.0, ErrorMessage = "Gordura corporal deve estar entre 3 e 60%")]
+    public decimal? GorduraPct { get; set; }
+
+    [Range(20.0, 400.0, ErrorMessage = "Peso desejado deve estar entre 20 e 400 kg")]
+    public decimal? PesoMetaKg { get; set; }
+
+    [RegularExpression("^(leve|moderado|acelerado)$", ErrorMessage = "Ritmo inválido")]
+    public string? Ritmo { get; set; }
+
+    [RegularExpression("^(sentado|em_pe|fisico)$", ErrorMessage = "Rotina diária inválida")]
+    public string? RotinaDiaria { get; set; }
+
+    [Range(0, 7, ErrorMessage = "Dias de treino deve estar entre 0 e 7")]
+    public int? DiasTreino { get; set; }
+
+    [Range(10, 240, ErrorMessage = "Duração do treino deve estar entre 10 e 240 minutos")]
+    public int? MinutosTreino { get; set; }
+
+    [RegularExpression("^(leve|moderada|intensa)$", ErrorMessage = "Intensidade de treino inválida")]
+    public string? IntensidadeTreino { get; set; }
+
+    [MaxLength(200, ErrorMessage = "Texto de condições de saúde longo demais")]
+    public string? CondicoesSaude { get; set; }
+
+    /// <summary>As mesmas opções do app (camposPerfil.ts). Qualquer outra é descartada.</summary>
+    public static readonly string[] CondicoesPermitidas =
+        ["Diabetes", "Hipertensão", "Colesterol alto", "Doença renal", "Problema de tireoide"];
 }

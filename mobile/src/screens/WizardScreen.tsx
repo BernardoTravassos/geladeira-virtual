@@ -23,13 +23,28 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { saveProfile } from "../services/api";
 import BarraTeclado, { ID_BARRA_TECLADO } from "../components/BarraTeclado";
 import { interpretarNumero, type RegraNumero } from "../utils/numeros";
-import { REGRAS, OPCOES_INTOLERANCIA } from "../utils/camposPerfil";
-import { NIVEIS_ATIVIDADE, nivelPorRotulo } from "../utils/nutricao";
+import {
+  REGRAS,
+  OPCOES_INTOLERANCIA,
+  OPCOES_CONDICOES,
+  OPCOES_GESTACAO,
+  OPCOES_RITMO,
+  OPCOES_ROTINA,
+  OPCOES_DIAS_TREINO,
+  OPCOES_DURACAO_TREINO,
+  OPCOES_INTENSIDADE,
+  chaveDe,
+} from "../utils/camposPerfil";
+import { nivelDoPerfil } from "../utils/nutricao";
 
 type Pergunta = {
   chave: string;
   titulo: string;
-  tipo: "texto" | "numero" | "selecao" | "intolerancia";
+  tipo: "texto" | "numero" | "selecao" | "intolerancia" | "condicoes";
+  /** Perguntas condicionais: só aparecem quando isto devolve true. */
+  mostrar?: (r: Record<string, string>) => boolean;
+  /** Texto de apoio abaixo do título: por que a pergunta importa. */
+  dica?: string;
   opcoes?: string[];
   opcional?: boolean;
   placeholder?: string;
@@ -37,6 +52,9 @@ type Pergunta = {
   regra?: RegraNumero;
 };
 
+
+const querMudarPeso = (r: Record<string, string>) => r.objetivo === "Emagrecer" || r.objetivo === "Ganhar massa";
+const treina = (r: Record<string, string>) => !!r.diasTreino && r.diasTreino !== OPCOES_DIAS_TREINO[0].rotulo;
 
 const perguntas: Pergunta[] = [
   { chave: "nome", titulo: "Qual é o seu nome?", tipo: "texto", placeholder: "Seu nome" },
@@ -47,7 +65,21 @@ const perguntas: Pergunta[] = [
     placeholder: "Ex: 28",
     regra: REGRAS.idade,
   },
-  { chave: "sexo", titulo: "Qual é o seu sexo?", tipo: "selecao", opcoes: ["Masculino", "Feminino", "Outro"] },
+  {
+    chave: "sexo",
+    titulo: "Qual é o seu sexo?",
+    tipo: "selecao",
+    opcoes: ["Masculino", "Feminino", "Outro"],
+    dica: "Usado na equação do metabolismo, que muda entre homens e mulheres.",
+  },
+  {
+    chave: "gestacao",
+    titulo: "Você está grávida ou amamentando?",
+    tipo: "selecao",
+    opcoes: OPCOES_GESTACAO.map((o) => o.rotulo),
+    mostrar: (r) => r.sexo === "Feminino",
+    dica: "Nessas fases o corpo precisa de mais calorias e nutrientes, e a meta muda.",
+  },
   {
     chave: "alturaCm",
     titulo: "Qual é a sua altura (cm)?",
@@ -63,16 +95,69 @@ const perguntas: Pergunta[] = [
     regra: REGRAS.pesoKg,
   },
   {
+    chave: "gorduraPct",
+    titulo: "Sabe seu percentual de gordura?",
+    tipo: "numero",
+    opcional: true,
+    placeholder: "Ex: 22 (opcional)",
+    regra: REGRAS.gorduraPct,
+    dica: "Vem de bioimpedância ou avaliação física. Se não souber, pode pular: o cálculo funciona sem.",
+  },
+  {
     chave: "objetivo",
     titulo: "Qual é o seu objetivo?",
     tipo: "selecao",
     opcoes: ["Emagrecer", "Ganhar massa", "Manter o peso", "Comer mais saudável"],
   },
   {
-    chave: "nivelAtividade",
-    titulo: "Qual é o seu nível de atividade física?",
+    chave: "pesoMetaKg",
+    titulo: "Qual peso você quer alcançar (kg)?",
+    tipo: "numero",
+    placeholder: "Ex: 65",
+    regra: REGRAS.pesoMetaKg,
+    mostrar: querMudarPeso,
+    dica: "Com ele estimamos em quanto tempo você chega lá.",
+  },
+  {
+    chave: "ritmo",
+    titulo: "Em que ritmo você quer chegar lá?",
     tipo: "selecao",
-    opcoes: NIVEIS_ATIVIDADE.map((n) => n.rotulo),
+    opcoes: OPCOES_RITMO.map((o) => o.rotulo),
+    mostrar: querMudarPeso,
+    dica: "Quanto mais acelerado, maior o corte (ou acréscimo) de calorias. O moderado é o mais fácil de manter.",
+  },
+  {
+    chave: "rotinaDiaria",
+    titulo: "Como é o seu dia a dia, fora do treino?",
+    tipo: "selecao",
+    opcoes: OPCOES_ROTINA.map((o) => o.rotulo),
+    dica: "Quem passa o dia em pé gasta mais do que quem passa sentado, mesmo sem treinar.",
+  },
+  {
+    chave: "diasTreino",
+    titulo: "Quantos dias por semana você treina?",
+    tipo: "selecao",
+    opcoes: OPCOES_DIAS_TREINO.map((o) => o.rotulo),
+  },
+  {
+    chave: "duracaoTreino",
+    titulo: "Quanto dura cada treino?",
+    tipo: "selecao",
+    opcoes: OPCOES_DURACAO_TREINO.map((o) => o.rotulo),
+    mostrar: treina,
+  },
+  {
+    chave: "intensidadeTreino",
+    titulo: "Qual a intensidade do treino?",
+    tipo: "selecao",
+    opcoes: OPCOES_INTENSIDADE.map((o) => o.rotulo),
+    mostrar: treina,
+  },
+  {
+    chave: "condicoes",
+    titulo: "Tem alguma condição de saúde?",
+    tipo: "condicoes",
+    dica: "Ajuda a deixar a meta mais segura e a avisar o que precisa de acompanhamento.",
   },
   { chave: "vegano", titulo: "Você é vegano?", tipo: "selecao", opcoes: ["Sim", "Não"] },
   {
@@ -106,8 +191,12 @@ export default function WizardScreen({ navigation }: any) {
   // foi marcado (pode ser mais de uma) e o texto de "Outra" ficam à parte.
   const [marcadas, setMarcadas] = useState<string[]>([]);
   const [outraIntolerancia, setOutraIntolerancia] = useState("");
+  // Condições de saúde: mesma ideia, "Sim"/"Não" em respostas.condicoes.
+  const [condMarcadas, setCondMarcadas] = useState<string[]>([]);
 
-  const pergunta = perguntas[indice];
+  // Só as perguntas que valem para as respostas dadas até aqui.
+  const lista = useMemo(() => perguntas.filter((p) => !p.mostrar || p.mostrar(respostas)), [respostas]);
+  const pergunta = lista[Math.min(indice, lista.length - 1)];
   const respostaAtual = respostas[pergunta.chave] || "";
   const intoleranciasEscolhidas = [
     ...marcadas.filter((m) => m !== "Outra"),
@@ -116,7 +205,9 @@ export default function WizardScreen({ navigation }: any) {
   const podeContinuar =
     pergunta.tipo === "intolerancia"
       ? respostaAtual === "Não" || (respostaAtual === "Sim" && intoleranciasEscolhidas.length > 0)
-      : pergunta.opcional || respostaAtual.trim().length > 0;
+      : pergunta.tipo === "condicoes"
+        ? respostaAtual === "Não" || (respostaAtual === "Sim" && condMarcadas.length > 0)
+        : pergunta.opcional || respostaAtual.trim().length > 0;
 
   function alternarIntolerancia(opcao: string) {
     setMarcadas((prev) => (prev.includes(opcao) ? prev.filter((o) => o !== opcao) : [...prev, opcao]));
@@ -128,6 +219,15 @@ export default function WizardScreen({ navigation }: any) {
       setMarcadas([]);
       setOutraIntolerancia("");
     }
+  }
+
+  function alternarCondicao(opcao: string) {
+    setCondMarcadas((prev) => (prev.includes(opcao) ? prev.filter((o) => o !== opcao) : [...prev, opcao]));
+  }
+
+  function responderTemCondicao(valor: "Sim" | "Não") {
+    atualizarResposta(valor);
+    if (valor === "Não") setCondMarcadas([]);
   }
 
   function atualizarResposta(valor: string) {
@@ -147,22 +247,36 @@ export default function WizardScreen({ navigation }: any) {
 
     // Valida AGORA, não na última pergunta: descobrir depois de responder
     // tudo que a idade estava errada obrigava a pessoa a voltar e refazer.
-    if (pergunta.tipo === "numero" && pergunta.regra) {
+    if (pergunta.tipo === "numero" && pergunta.regra && !(pergunta.opcional && !respostaAtual.trim())) {
       const resultado = interpretarNumero(respostaAtual, pergunta.regra);
       if ("erro" in resultado) {
         Keyboard.dismiss();
         Alert.alert("Confira o valor", resultado.erro);
         return;
       }
+      // O peso desejado precisa ir na direção do objetivo.
+      if (pergunta.chave === "pesoMetaKg") {
+        const atual = numeroDe("pesoKg");
+        if (respostas.objetivo === "Emagrecer" && resultado.valor >= atual) {
+          Alert.alert("Confira o valor", `Para emagrecer, o peso desejado precisa ser menor que o atual (${atual} kg).`);
+          return;
+        }
+        if (respostas.objetivo === "Ganhar massa" && resultado.valor <= atual) {
+          Alert.alert("Confira o valor", `Para ganhar massa, o peso desejado precisa ser maior que o atual (${atual} kg).`);
+          return;
+        }
+      }
     }
 
-    if (indice < perguntas.length - 1) {
+    if (indice < lista.length - 1) {
       setIndice(indice + 1);
       return;
     }
 
     setEnviando(true);
     try {
+      const dias = (chaveDe(OPCOES_DIAS_TREINO, respostas.diasTreino) as number | undefined) ?? 0;
+      const mudaPeso = querMudarPeso(respostas);
       await saveProfile({
         nome: respostas.nome,
         idade: numeroDe("idade"),
@@ -170,8 +284,18 @@ export default function WizardScreen({ navigation }: any) {
         alturaCm: numeroDe("alturaCm"),
         pesoKg: numeroDe("pesoKg"),
         objetivo: respostas.objetivo,
-        praticaExercicio: nivelPorRotulo(respostas.nivelAtividade)?.chave !== "sedentario",
-        nivelAtividade: nivelPorRotulo(respostas.nivelAtividade)?.chave,
+        praticaExercicio: dias > 0,
+        // Resumo derivado dos dias de treino (apps antigos e telas de resumo leem este campo).
+        nivelAtividade: nivelDoPerfil({ dias_treino: dias }),
+        gestacao: respostas.sexo === "Feminino" ? (chaveDe(OPCOES_GESTACAO, respostas.gestacao) as string) ?? "nao" : null,
+        gorduraPct: respostas.gorduraPct?.trim() ? numeroDe("gorduraPct") : null,
+        pesoMetaKg: mudaPeso ? numeroDe("pesoMetaKg") : null,
+        ritmo: mudaPeso ? (chaveDe(OPCOES_RITMO, respostas.ritmo) as string) ?? "moderado" : null,
+        rotinaDiaria: chaveDe(OPCOES_ROTINA, respostas.rotinaDiaria) as string,
+        diasTreino: dias,
+        minutosTreino: dias > 0 ? (chaveDe(OPCOES_DURACAO_TREINO, respostas.duracaoTreino) as number) : null,
+        intensidadeTreino: dias > 0 ? (chaveDe(OPCOES_INTENSIDADE, respostas.intensidadeTreino) as string) : null,
+        condicoesSaude: condMarcadas.length ? condMarcadas.join(", ") : null,
         intolerancias: intoleranciasEscolhidas.length ? intoleranciasEscolhidas.join(", ") : undefined,
         vegano: respostas.vegano === "Sim",
         preferenciaPreparo: respostas.preferenciaPreparo,
@@ -213,16 +337,17 @@ export default function WizardScreen({ navigation }: any) {
               <View
                 style={[
                   styles.progressFill,
-                  { width: `${((indice + 1) / perguntas.length) * 100}%` },
+                  { width: `${((indice + 1) / lista.length) * 100}%` },
                 ]}
               />
             </View>
           </View>
 
           <Text style={styles.stepLabel}>
-            Pergunta {indice + 1} de {perguntas.length}
+            Pergunta {indice + 1} de {lista.length}
           </Text>
           <Text style={styles.title}>{pergunta.titulo}</Text>
+          {!!pergunta.dica && <Text style={styles.dica}>{pergunta.dica}</Text>}
 
           <View style={styles.content}>
             {pergunta.tipo === "texto" && (
@@ -306,22 +431,75 @@ export default function WizardScreen({ navigation }: any) {
               </ScrollView>
             )}
 
-            {pergunta.tipo === "selecao" &&
-              pergunta.opcoes?.map((opcao) => {
-                const selecionado = respostaAtual === opcao;
-                return (
-                  <TouchableOpacity
-                    key={opcao}
-                    style={[styles.opcao, selecionado && styles.opcaoSelecionada]}
-                    onPress={() => atualizarResposta(opcao)}
-                  >
-                    <Text style={[styles.opcaoTexto, selecionado && styles.opcaoTextoSelecionado]}>
-                      {opcao}
-                    </Text>
-                    {selecionado && <Feather name="check" size={16} color={colors.primary} />}
-                  </TouchableOpacity>
-                );
-              })}
+            {pergunta.tipo === "condicoes" && (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ gap: 10 }}
+              >
+                {(["Não", "Sim"] as const).map((opcao) => {
+                  const selecionado = respostaAtual === opcao;
+                  return (
+                    <TouchableOpacity
+                      key={opcao}
+                      style={[styles.opcao, selecionado && styles.opcaoSelecionada]}
+                      onPress={() => responderTemCondicao(opcao)}
+                    >
+                      <Text style={[styles.opcaoTexto, selecionado && styles.opcaoTextoSelecionado]}>
+                        {opcao === "Não" ? "Não, nenhuma" : "Sim"}
+                      </Text>
+                      {selecionado && <Feather name="check" size={16} color={colors.primary} />}
+                    </TouchableOpacity>
+                  );
+                })}
+                {respostaAtual === "Sim" && (
+                  <View style={{ gap: 10, marginTop: 6 }}>
+                    <Text style={styles.subtitulo}>Qual(is)? Pode marcar mais de uma.</Text>
+                    <View style={styles.chips}>
+                      {OPCOES_CONDICOES.map((opcao) => {
+                        const marcada = condMarcadas.includes(opcao);
+                        return (
+                          <TouchableOpacity
+                            key={opcao}
+                            style={[styles.chip, marcada && styles.chipMarcado]}
+                            onPress={() => alternarCondicao(opcao)}
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: marcada }}
+                          >
+                            {marcada && <Feather name="check" size={14} color="#fff" />}
+                            <Text style={[styles.chipTexto, marcada && styles.chipTextoMarcado]}>{opcao}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+
+            {pergunta.tipo === "selecao" && (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ gap: 10 }}
+              >
+                {pergunta.opcoes?.map((opcao) => {
+                  const selecionado = respostaAtual === opcao;
+                  return (
+                    <TouchableOpacity
+                      key={opcao}
+                      style={[styles.opcao, selecionado && styles.opcaoSelecionada]}
+                      onPress={() => atualizarResposta(opcao)}
+                    >
+                      <Text style={[styles.opcaoTexto, selecionado && styles.opcaoTextoSelecionado, { flex: 1 }]}>
+                        {opcao}
+                      </Text>
+                      {selecionado && <Feather name="check" size={16} color={colors.primary} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
 
           <TouchableOpacity
@@ -333,7 +511,11 @@ export default function WizardScreen({ navigation }: any) {
               <ActivityIndicator color={colors.textoSobreMarca} />
             ) : (
               <Text style={styles.buttonText}>
-                {indice === perguntas.length - 1 ? "Concluir" : "Continuar"}
+                {indice === lista.length - 1
+                  ? "Concluir"
+                  : pergunta.opcional && !respostaAtual.trim()
+                    ? "Pular"
+                    : "Continuar"}
               </Text>
             )}
           </TouchableOpacity>
@@ -358,6 +540,7 @@ const criarStyles = (colors: Cores) => StyleSheet.create({
   progressFill: { height: "100%", backgroundColor: colors.botao, borderRadius: 3 },
   stepLabel: { fontSize: 11, color: colors.textSecondary, fontWeight: "600", marginBottom: 6 },
   title: { fontSize: 20, fontWeight: "700", color: colors.textPrimary, marginBottom: 20 },
+  dica: { fontSize: 13, color: colors.textSecondary, marginTop: -12, marginBottom: 16, lineHeight: 18 },
   content: { flex: 1, gap: 10 },
   input: {
     height: 48,

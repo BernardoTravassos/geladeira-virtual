@@ -336,13 +336,41 @@ namespace GeladeiraVirtual.Api.Dados.Migrations
                         .HasColumnName("atualizado_em")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<string>("CondicoesSaude")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("condicoes_saude");
+
+                    b.Property<int?>("DiasTreino")
+                        .HasColumnType("integer")
+                        .HasColumnName("dias_treino");
+
+                    b.Property<string>("Gestacao")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("gestacao");
+
+                    b.Property<decimal?>("GorduraPct")
+                        .HasPrecision(4, 1)
+                        .HasColumnType("numeric(4,1)")
+                        .HasColumnName("gordura_pct");
+
                     b.Property<int?>("Idade")
                         .HasColumnType("integer")
                         .HasColumnName("idade");
 
+                    b.Property<string>("IntensidadeTreino")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("intensidade_treino");
+
                     b.Property<string>("Intolerancias")
                         .HasColumnType("text")
                         .HasColumnName("intolerancias");
+
+                    b.Property<int?>("MinutosTreino")
+                        .HasColumnType("integer")
+                        .HasColumnName("minutos_treino");
 
                     b.Property<string>("NivelAtividade")
                         .HasMaxLength(20)
@@ -364,6 +392,11 @@ namespace GeladeiraVirtual.Api.Dados.Migrations
                         .HasColumnType("numeric(5,1)")
                         .HasColumnName("peso_kg");
 
+                    b.Property<decimal?>("PesoMetaKg")
+                        .HasPrecision(5, 1)
+                        .HasColumnType("numeric(5,1)")
+                        .HasColumnName("peso_meta_kg");
+
                     b.Property<bool?>("PraticaExercicio")
                         .HasColumnType("boolean")
                         .HasColumnName("pratica_exercicio");
@@ -372,6 +405,16 @@ namespace GeladeiraVirtual.Api.Dados.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
                         .HasColumnName("preferencia_preparo");
+
+                    b.Property<string>("Ritmo")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("ritmo");
+
+                    b.Property<string>("RotinaDiaria")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("rotina_diaria");
 
                     b.Property<string>("Sexo")
                         .HasMaxLength(30)

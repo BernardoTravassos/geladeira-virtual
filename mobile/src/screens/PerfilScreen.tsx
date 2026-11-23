@@ -23,19 +23,33 @@ import CampoSenha from "../components/CampoSenha";
 import CardMeuNutricionista from "../components/CardMeuNutricionista";
 import BarraTeclado, { ID_BARRA_TECLADO } from "../components/BarraTeclado";
 import { interpretarNumero } from "../utils/numeros";
-import { OPCOES_INTOLERANCIA, REGRAS } from "../utils/camposPerfil";
+import {
+  OPCOES_INTOLERANCIA, OPCOES_CONDICOES, OPCOES_GESTACAO, OPCOES_RITMO, OPCOES_ROTINA, OPCOES_DIAS_TREINO,
+  OPCOES_DURACAO_TREINO, OPCOES_INTENSIDADE, REGRAS, chaveDe, curtoDe, rotuloDe, type OpcaoPerfil,
+} from "../utils/camposPerfil";
 
 type Chave =
   | "nome" | "idade" | "sexo" | "alturaCm" | "pesoKg" | "objetivo"
-  | "nivelAtividade" | "vegano" | "intolerancias" | "preferenciaPreparo" | "tempoDisponivel";
+  | "vegano" | "intolerancias" | "preferenciaPreparo" | "tempoDisponivel"
+  | "gestacao" | "gorduraPct" | "pesoMetaKg" | "ritmo" | "rotinaDiaria" | "diasTreino"
+  | "duracaoTreino" | "intensidadeTreino" | "condicoesSaude";
 
 type Campo = {
   chave: Chave;
   rotulo: string;
   icone: keyof typeof Feather.glyphMap;
-  tipo: "texto" | "numero" | "selecao" | "intolerancias";
+  tipo: "texto" | "numero" | "selecao" | "intolerancias" | "condicoes";
   opcoes?: string[];
+  /** Seleção cujo valor guardado é uma chave (e não o próprio texto). */
+  lista?: OpcaoPerfil<any>[];
+  /** Número que pode ficar em branco (vira "não informado"). */
+  opcional?: boolean;
+  /** Só aparece quando a pergunta faz sentido para este perfil. */
+  mostrar?: (p: PerfilApi | null) => boolean;
 };
+
+const querMudarPeso = (p: PerfilApi | null) => p?.objetivo === "Emagrecer" || p?.objetivo === "Ganhar massa";
+const treinaHoje = (p: PerfilApi | null) => (p?.dias_treino ?? 0) > 0;
 
 const CAMPOS: Campo[] = [
   { chave: "nome", rotulo: "Nome", icone: "user", tipo: "texto" },
@@ -44,7 +58,15 @@ const CAMPOS: Campo[] = [
   { chave: "alturaCm", rotulo: "Altura", icone: "maximize-2", tipo: "numero" },
   { chave: "pesoKg", rotulo: "Peso", icone: "activity", tipo: "numero" },
   { chave: "objetivo", rotulo: "Objetivo", icone: "target", tipo: "selecao", opcoes: ["Emagrecer", "Ganhar massa", "Manter o peso", "Comer mais saudável"] },
-  { chave: "nivelAtividade", rotulo: "Atividade física", icone: "zap", tipo: "selecao", opcoes: NIVEIS_ATIVIDADE.map((n) => n.rotulo) },
+  { chave: "pesoMetaKg", rotulo: "Peso desejado", icone: "flag", tipo: "numero", opcional: true, mostrar: querMudarPeso },
+  { chave: "ritmo", rotulo: "Ritmo", icone: "trending-up", tipo: "selecao", lista: OPCOES_RITMO, mostrar: querMudarPeso },
+  { chave: "gorduraPct", rotulo: "Gordura corporal", icone: "percent", tipo: "numero", opcional: true },
+  { chave: "gestacao", rotulo: "Gestação / amamentação", icone: "heart", tipo: "selecao", lista: OPCOES_GESTACAO, mostrar: (p) => p?.sexo === "Feminino" },
+  { chave: "rotinaDiaria", rotulo: "Dia a dia", icone: "sun", tipo: "selecao", lista: OPCOES_ROTINA },
+  { chave: "diasTreino", rotulo: "Treino por semana", icone: "zap", tipo: "selecao", lista: OPCOES_DIAS_TREINO },
+  { chave: "duracaoTreino", rotulo: "Duração do treino", icone: "clock", tipo: "selecao", lista: OPCOES_DURACAO_TREINO, mostrar: treinaHoje },
+  { chave: "intensidadeTreino", rotulo: "Intensidade do treino", icone: "activity", tipo: "selecao", lista: OPCOES_INTENSIDADE, mostrar: treinaHoje },
+  { chave: "condicoesSaude", rotulo: "Condições de saúde", icone: "plus-square", tipo: "condicoes" },
   { chave: "vegano", rotulo: "Vegano", icone: "feather", tipo: "selecao", opcoes: ["Sim", "Não"] },
   { chave: "intolerancias", rotulo: "Intolerâncias", icone: "alert-circle", tipo: "intolerancias" },
   { chave: "preferenciaPreparo", rotulo: "Preparo", icone: "clock", tipo: "selecao", opcoes: ["Prático", "Elaborado"] },
@@ -63,7 +85,15 @@ function valorDoCampo(p: PerfilApi | null, chave: Chave): string {
     case "alturaCm": return p.altura_cm ? `${p.altura_cm} cm` : "—";
     case "pesoKg": return peso ? `${peso.toLocaleString("pt-BR")} kg` : "—";
     case "objetivo": return p.objetivo || "—";
-    case "nivelAtividade": return NIVEIS_ATIVIDADE.find((n) => n.chave === nivelDoPerfil(p))?.curto ?? "—";
+    case "pesoMetaKg": return Number(p.peso_meta_kg) ? `${Number(p.peso_meta_kg).toLocaleString("pt-BR")} kg` : "Não informado";
+    case "gorduraPct": return Number(p.gordura_pct) ? `${Number(p.gordura_pct).toLocaleString("pt-BR")}%` : "Não informado";
+    case "ritmo": return curtoDe(OPCOES_RITMO, p.ritmo) ?? "Moderado";
+    case "gestacao": return curtoDe(OPCOES_GESTACAO, p.gestacao) ?? "Não";
+    case "rotinaDiaria": return curtoDe(OPCOES_ROTINA, p.rotina_diaria) ?? "Não informado";
+    case "diasTreino": return curtoDe(OPCOES_DIAS_TREINO, p.dias_treino) ?? "Não informado";
+    case "duracaoTreino": return curtoDe(OPCOES_DURACAO_TREINO, p.minutos_treino) ?? "—";
+    case "intensidadeTreino": return curtoDe(OPCOES_INTENSIDADE, p.intensidade_treino) ?? "—";
+    case "condicoesSaude": return p.condicoes_saude || "Nenhuma";
     case "vegano": return simNao((p as any).vegano);
     case "intolerancias": return (p as any).intolerancias || "Nenhuma";
     case "preferenciaPreparo": return (p as any).preferencia_preparo || "—";
@@ -79,8 +109,23 @@ function valorParaEditar(p: PerfilApi | null, chave: Chave): string {
     case "idade": return p.idade ? String(p.idade) : "";
     case "alturaCm": return p.altura_cm ? String(p.altura_cm) : "";
     case "pesoKg": return Number(p.peso_kg) ? String(Number(p.peso_kg)).replace(".", ",") : "";
+    case "pesoMetaKg": return Number(p.peso_meta_kg) ? String(Number(p.peso_meta_kg)).replace(".", ",") : "";
+    case "gorduraPct": return Number(p.gordura_pct) ? String(Number(p.gordura_pct)).replace(".", ",") : "";
     default: return valorDoCampo(p, chave);
   }
+}
+
+/** Texto completo da opção escolhida hoje, para marcar a seleção ao abrir a edição. */
+function rotuloAtual(p: PerfilApi | null, c: Campo): string {
+  if (!c.lista || !p) return "";
+  const bruto =
+    c.chave === "ritmo" ? p.ritmo ?? "moderado"
+    : c.chave === "gestacao" ? p.gestacao ?? "nao"
+    : c.chave === "rotinaDiaria" ? p.rotina_diaria
+    : c.chave === "diasTreino" ? p.dias_treino
+    : c.chave === "duracaoTreino" ? p.minutos_treino
+    : p.intensidade_treino;
+  return rotuloDe(c.lista, bruto) ?? "";
 }
 
 export default function PerfilScreen({ navigation }: any) {
@@ -117,6 +162,7 @@ export default function PerfilScreen({ navigation }: any) {
     }, []),
   );
 
+  const camposVisiveis = CAMPOS.filter((c) => !c.mostrar || c.mostrar(perfil));
   const metas = calcularMetas(perfil);
   const metaAgua = calcularMetaAguaMl(perfil);
   const [detalhesAbertos, setDetalhesAbertos] = useState(false);
@@ -132,11 +178,11 @@ export default function PerfilScreen({ navigation }: any) {
     setCampo(c);
     setErro("");
     setTexto(valorParaEditar(perfil, c.chave));
-    setEscolha(
-      c.chave === "nivelAtividade"
-        ? NIVEIS_ATIVIDADE.find((n) => n.chave === nivelDoPerfil(perfil))?.rotulo ?? ""
-        : c.tipo === "selecao" ? valorDoCampo(perfil, c.chave) : "",
-    );
+    setEscolha(c.lista ? rotuloAtual(perfil, c) : c.tipo === "selecao" ? valorDoCampo(perfil, c.chave) : "");
+    if (c.tipo === "condicoes") {
+      setMarcadas(((perfil?.condicoes_saude ?? "") as string).split(",").map((x) => x.trim()).filter((x) => OPCOES_CONDICOES.includes(x)));
+      setOutra("");
+    }
     if (c.tipo === "intolerancias") {
       const atuais = ((perfil as any)?.intolerancias ?? "").split(",").map((x: string) => x.trim()).filter(Boolean);
       const conhecidas = atuais.filter((x: string) => OPCOES_INTOLERANCIA.includes(x));
@@ -155,12 +201,23 @@ export default function PerfilScreen({ navigation }: any) {
       if (!texto.trim()) return setErro("Preencha este campo.");
       novo = texto.trim().slice(0, 80);
     } else if (campo.tipo === "numero") {
-      const r = interpretarNumero(texto, REGRAS[campo.chave as "idade" | "alturaCm" | "pesoKg"]);
-      if ("erro" in r) return setErro(r.erro);
-      novo = r.valor;
+      if (campo.opcional && !texto.trim()) {
+        novo = undefined;
+      } else {
+        const r = interpretarNumero(texto, REGRAS[campo.chave as keyof typeof REGRAS]);
+        if ("erro" in r) return setErro(r.erro);
+        novo = r.valor;
+        if (campo.chave === "pesoMetaKg") {
+          const atual = Number(perfil.peso_kg);
+          if (perfil.objetivo === "Emagrecer" && r.valor >= atual) return setErro(`Para emagrecer, o peso desejado precisa ser menor que o atual (${atual} kg).`);
+          if (perfil.objetivo === "Ganhar massa" && r.valor <= atual) return setErro(`Para ganhar massa, o peso desejado precisa ser maior que o atual (${atual} kg).`);
+        }
+      }
     } else if (campo.tipo === "selecao") {
       if (!escolha || escolha === "—") return setErro("Escolha uma opção.");
-      novo = campo.chave === "vegano" ? escolha === "Sim" : campo.chave === "nivelAtividade" ? nivelPorRotulo(escolha)?.chave : escolha;
+      novo = campo.lista ? chaveDe(campo.lista, escolha) : campo.chave === "vegano" ? escolha === "Sim" : escolha;
+    } else if (campo.tipo === "condicoes") {
+      novo = marcadas.length ? marcadas.join(", ") : undefined;
     } else {
       const lista = [...marcadas.filter((m) => m !== "Outra"), ...(marcadas.includes("Outra") && outra.trim() ? [outra.trim()] : [])];
       if (marcadas.includes("Outra") && !outra.trim()) return setErro('Escreva qual é a "Outra" ou desmarque.');
@@ -168,14 +225,37 @@ export default function PerfilScreen({ navigation }: any) {
     }
 
     const p: any = perfil;
-    const dados = {
+    const numeroOuNulo = (v: unknown) => (v !== null && v !== undefined && v !== "" && Number(v) ? Number(v) : null);
+    // O app reenvia o perfil inteiro a cada edição: os campos novos precisam ir junto,
+    // senão editar o nome apagaria as respostas de treino, gestação etc.
+    const dados: any = {
       nome: p.nome, idade: p.idade, sexo: p.sexo, alturaCm: p.altura_cm, pesoKg: Number(p.peso_kg),
       objetivo: p.objetivo, praticaExercicio: !!p.pratica_exercicio, nivelAtividade: nivelDoPerfil(perfil), intolerancias: p.intolerancias || undefined,
       vegano: !!p.vegano, preferenciaPreparo: p.preferencia_preparo, tempoDisponivel: p.tempo_disponivel,
-      [campo.chave]: novo,
+      gestacao: p.gestacao ?? null, gorduraPct: numeroOuNulo(p.gordura_pct), pesoMetaKg: numeroOuNulo(p.peso_meta_kg),
+      ritmo: p.ritmo ?? null, rotinaDiaria: p.rotina_diaria ?? null, diasTreino: p.dias_treino ?? null,
+      minutosTreino: p.minutos_treino ?? null, intensidadeTreino: p.intensidade_treino ?? null,
+      condicoesSaude: p.condicoes_saude ?? null,
     };
-    // O booleano antigo acompanha o nível (o backend o mantém coerente).
-    if (campo.chave === "nivelAtividade") dados.praticaExercicio = novo !== "sedentario";
+    const chaveNoEnvio = campo.chave === "duracaoTreino" ? "minutosTreino" : campo.chave;
+    dados[chaveNoEnvio] = novo === undefined ? null : novo;
+    if (campo.chave === "diasTreino") {
+      const dias = Number(novo);
+      dados.praticaExercicio = dias > 0;
+      dados.nivelAtividade = nivelDoPerfil({ dias_treino: dias });
+      if (dias === 0) { dados.minutosTreino = null; dados.intensidadeTreino = null; }
+      else { dados.minutosTreino ??= 60; dados.intensidadeTreino ??= "moderada"; }
+    }
+    if (campo.chave === "objetivo" && !querMudarPeso({ objetivo: String(novo) })) { dados.pesoMetaKg = null; dados.ritmo = null; }
+    // Sem rotina informada (perfil antigo) o cálculo seguiria o nível antigo; ao tocar em treino, preenche a rotina padrão.
+    if (campo.chave === "diasTreino" && !dados.rotinaDiaria) dados.rotinaDiaria = "sentado";
+    // Perfil antigo: ao informar só a rotina, traz o treino do nível antigo para o cálculo detalhado valer.
+    if (campo.chave === "rotinaDiaria" && dados.diasTreino == null) {
+      const d = ({ sedentario: 0, leve: 2, moderado: 4, intenso: 5, muito_intenso: 7 } as const)[nivelDoPerfil(perfil)];
+      dados.diasTreino = d;
+      dados.praticaExercicio = d > 0;
+      if (d > 0) { dados.minutosTreino ??= 60; dados.intensidadeTreino ??= "moderada"; }
+    }
 
     setSalvando(true);
     try {
@@ -266,10 +346,10 @@ export default function PerfilScreen({ navigation }: any) {
                 <Feather name={dadosAbertos ? "chevron-up" : "chevron-down"} size={18} color={colors.textSecondary} />
               </TouchableOpacity>
 
-              {dadosAbertos && CAMPOS.map((c, i) => (
+              {dadosAbertos && camposVisiveis.map((c, i) => (
                 <TouchableOpacity
                   key={c.chave}
-                  style={[styles.linha, i < CAMPOS.length - 1 && styles.linhaDivisor]}
+                  style={[styles.linha, i < camposVisiveis.length - 1 && styles.linhaDivisor]}
                   activeOpacity={0.7}
                   onPress={() => abrirEdicao(c)}
                   accessibilityRole="button"
@@ -299,13 +379,20 @@ export default function PerfilScreen({ navigation }: any) {
             </TouchableOpacity>
             {detalhesAbertos && (
               <View style={[styles.card, { paddingVertical: 14, gap: 8 }]}>
-                <LinhaCalculo rotulo="Metabolismo basal" valor={`${metas.detalhes.tmb} kcal`} nota="Mifflin-St Jeor: sexo, idade, peso e altura" />
-                <LinhaCalculo rotulo={`× atividade (${metas.detalhes.nivel})`} valor={`${metas.detalhes.fator.toLocaleString("pt-BR")}`} nota={`Gasto diário: ${metas.detalhes.gastoTotal} kcal`} />
+                <LinhaCalculo rotulo="Metabolismo basal" valor={`${metas.detalhes.tmb} kcal`} nota={`${metas.detalhes.metodoTmb}: ${metas.detalhes.metodoTmb.startsWith("Katch") ? "massa magra" : "sexo, idade, peso e altura"}`} />
+                <LinhaCalculo rotulo={`× atividade (${metas.detalhes.nivel})`} valor={`${metas.detalhes.fator.toLocaleString("pt-BR")}`} nota={`Gasto diário: ${metas.detalhes.gastoTotal} kcal${metas.detalhes.gastoExercicio > 0 ? ` (treino: ~${metas.detalhes.gastoExercicio} kcal/dia)` : ""}`} />
                 <LinhaCalculo
                   rotulo={`Objetivo: ${perfil?.objetivo ?? "—"}`}
                   valor={`${metas.detalhes.ajusteKcal > 0 ? "+" : ""}${metas.detalhes.ajusteKcal} kcal`}
-                  nota={metas.detalhes.ajusteKcal < 0 ? "Déficit de ~20% do gasto (máx. 750 kcal)" : metas.detalhes.ajusteKcal > 0 ? "Superávit de ~10% do gasto" : "Sem ajuste"}
+                  nota={metas.detalhes.notaAjuste}
                 />
+                {metas.detalhes.semanasParaMeta !== null && (
+                  <LinhaCalculo
+                    rotulo="Prazo estimado"
+                    valor={`~${metas.detalhes.semanasParaMeta} sem.`}
+                    nota={`Até ${Number(perfil?.peso_meta_kg).toLocaleString("pt-BR")} kg, a ~${metas.detalhes.kgPorSemana.toLocaleString("pt-BR")} kg por semana`}
+                  />
+                )}
                 <LinhaCalculo rotulo="Proteína" valor={`${metas.detalhes.proteinaPorKg.toLocaleString("pt-BR")} g/kg`} nota={`Sobre ${metas.detalhes.pesoBase} kg · IMC ${metas.detalhes.imc.toLocaleString("pt-BR")}`} />
                 {metas.detalhes.avisos.map((a) => (
                   <Text key={a} style={styles.avisoCalc}>{a}</Text>
@@ -409,13 +496,13 @@ export default function PerfilScreen({ navigation }: any) {
                       onChangeText={(t) => { setTexto(t); setErro(""); }}
                       keyboardType="decimal-pad"
                       inputAccessoryViewID={ID_BARRA_TECLADO}
-                      placeholder={campo.chave === "alturaCm" ? "Ex: 175 (em centímetros)" : campo.chave === "pesoKg" ? "Ex: 70,5" : "Ex: 28"}
+                      placeholder={campo.chave === "alturaCm" ? "Ex: 175 (em centímetros)" : campo.chave === "pesoKg" || campo.chave === "pesoMetaKg" ? "Ex: 70,5" : campo.chave === "gorduraPct" ? "Ex: 22 (deixe em branco para remover)" : "Ex: 28"}
                       placeholderTextColor={colors.textSecondary}
                     />
                   )}
                   {campo?.tipo === "selecao" && (
                     <View style={{ gap: 8 }}>
-                      {campo.opcoes!.map((o) => (
+                      {(campo.lista ? campo.lista.map((x) => x.rotulo) : campo.opcoes!).map((o) => (
                         <TouchableOpacity key={o} style={[styles.opcao, escolha === o && styles.opcaoSel]} onPress={() => setEscolha(o)}>
                           <Text style={[styles.opcaoTxt, escolha === o && styles.opcaoTxtSel]}>{o}</Text>
                           {escolha === o && <Feather name="check" size={16} color={colors.primary} />}
@@ -423,11 +510,11 @@ export default function PerfilScreen({ navigation }: any) {
                       ))}
                     </View>
                   )}
-                  {campo?.tipo === "intolerancias" && (
+                  {(campo?.tipo === "intolerancias" || campo?.tipo === "condicoes") && (
                     <View style={{ gap: 10 }}>
                       <Text style={styles.rotulo}>Marque todas que se aplicam. Sem nenhuma marcada, fica "Nenhuma".</Text>
                       <View style={styles.chips}>
-                        {OPCOES_INTOLERANCIA.map((o) => {
+                        {(campo.tipo === "condicoes" ? OPCOES_CONDICOES : OPCOES_INTOLERANCIA).map((o) => {
                           const m = marcadas.includes(o);
                           return (
                             <TouchableOpacity key={o} style={[styles.chip, m && styles.chipMarcado]} onPress={() => setMarcadas((a) => (a.includes(o) ? a.filter((x) => x !== o) : [...a, o]))}>

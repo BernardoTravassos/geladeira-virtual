@@ -206,4 +206,20 @@ app.MapControllers();
 // Caminho que não existe: devolve JSON, não a página HTML padrão.
 app.MapFallback(() => Results.NotFound(new { error = "Rota não encontrada" }));
 
+// Aplica migrations pendentes ao iniciar. Só adiciona o que falta (colunas novas
+// são opcionais), e evita o código novo subir antes do banco ter as colunas, o que
+// derrubaria /profile. Para desligar: MIGRAR_AO_INICIAR=false.
+if (!string.Equals(Environment.GetEnvironmentVariable("MIGRAR_AO_INICIAR"), "false", StringComparison.OrdinalIgnoreCase))
+{
+    using var escopoMigracao = app.Services.CreateScope();
+    var bancoMigracao = escopoMigracao.ServiceProvider.GetRequiredService<GeladeiraContext>();
+    var pendentesAoIniciar = (await bancoMigracao.Database.GetPendingMigrationsAsync()).ToList();
+    if (pendentesAoIniciar.Count > 0)
+    {
+        app.Logger.LogInformation("Aplicando {Qtd} migration(s) pendente(s): {Nomes}",
+            pendentesAoIniciar.Count, string.Join(", ", pendentesAoIniciar));
+        await bancoMigracao.Database.MigrateAsync();
+    }
+}
+
 app.Run();

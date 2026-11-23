@@ -88,7 +88,10 @@ export default function LoginScreen({ navigation }: any) {
     } catch (erro: any) {
       const falhaDeRede = descreverFalhaDeRede(erro);
       const mensagem =
-        erro?.response?.data?.error || "Não foi possível entrar. Tente de novo.";
+        erro?.response?.data?.error ||
+        (falhaDeRede
+          ? "Não consegui falar com o servidor. Confira a internet e tente de novo."
+          : "Não foi possível entrar. Tente de novo.");
 
       // __DEV__ é verdadeiro só rodando pelo Expo; num app publicado o
       // detalhe técnico não aparece para o usuário.

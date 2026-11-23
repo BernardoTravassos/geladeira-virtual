@@ -199,16 +199,9 @@ export default function RefeicaoScreen({ navigation, route }: any) {
     setErroAnalise("");
     try {
       const r = await analisarPrato(uri, chave);
-      if (!r.eh_comida) {
-        setErroAnalise("Não identificamos comida nesta foto. Tente outra ou marque os alimentos abaixo.");
-        return;
-      }
-      if (r.alimentos.length === 0) {
-        setErroAnalise("Não consegui identificar os alimentos. Tente outra foto ou marque os alimentos abaixo.");
-        return;
-      }
-      // Antes de entrar no prato, a pessoa confere o que a IA viu.
-      setReconhecidos({ lista: r.alimentos, confianca: r.confianca });
+      // Antes de entrar no prato, a pessoa confere o que a IA viu. Se a IA não reconheceu nada,
+      // a mesma tela avisa e pede para a pessoa dizer qual é o alimento.
+      setReconhecidos({ lista: r.eh_comida ? r.alimentos : [], confianca: r.eh_comida ? r.confianca : "baixa" });
     } catch (e: any) {
       const status = e?.response?.status;
       setErroAnalise(
@@ -386,7 +379,7 @@ export default function RefeicaoScreen({ navigation, route }: any) {
         fotoUri={fotoUri}
         reconhecidos={reconhecidos?.lista ?? []}
         confianca={reconhecidos?.confianca ?? "media"}
-        catalogo={[...ALIMENTOS, ...meusVisiveis]}
+        meus={meusVisiveis}
         aoSalvar={salvarConfirmados}
         aoAdicionar={adicionarConfirmados}
         aoCancelar={() => setReconhecidos(null)}

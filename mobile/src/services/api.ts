@@ -66,6 +66,10 @@ export function descreverFalhaDeRede(erro: any): string | null {
   return `${codigo} ao chamar ${BASE_URL}`;
 }
 
+// O servidor gratuito dorme quando ninguém usa e leva ~1 min para acordar.
+// Login e cadastro esperam isso em vez de falhar aos 15 s.
+const TEMPO_ACORDAR_SERVIDOR = 75000;
+
 export const api = axios.create({
   baseURL: BASE_URL,
   // Sem isto o axios espera PARA SEMPRE. Se o servidor não responde (rede
@@ -85,7 +89,7 @@ export async function login(email: string, senha: string) {
     await AsyncStorage.setItem(CHAVE_EMAIL_DEMO, email.trim().toLowerCase());
     return TOKEN_DEMO;
   }
-  const response = await api.post("/auth/login", { email, senha });
+  const response = await api.post("/auth/login", { email, senha }, { timeout: TEMPO_ACORDAR_SERVIDOR });
   return response.data.token as string;
 }
 
@@ -94,7 +98,7 @@ export async function register(email: string, senha: string) {
     await AsyncStorage.setItem(CHAVE_EMAIL_DEMO, email.trim().toLowerCase());
     return TOKEN_DEMO;
   }
-  const response = await api.post("/auth/register", { email, senha });
+  const response = await api.post("/auth/register", { email, senha }, { timeout: TEMPO_ACORDAR_SERVIDOR });
   return response.data.token as string;
 }
 
@@ -112,6 +116,16 @@ export async function saveProfile(dados: {
   vegano: boolean;
   preferenciaPreparo: string;
   tempoDisponivel: string;
+  // Refinam o cálculo das metas; todas opcionais.
+  gestacao?: string | null;
+  gorduraPct?: number | null;
+  pesoMetaKg?: number | null;
+  ritmo?: string | null;
+  rotinaDiaria?: string | null;
+  diasTreino?: number | null;
+  minutosTreino?: number | null;
+  intensidadeTreino?: string | null;
+  condicoesSaude?: string | null;
 }) {
   if (DEV.MODO_DEMO) {
     // Guarda no MESMO formato que a API devolve (snake_case). Antes ficava em
@@ -141,6 +155,15 @@ function paraFormatoDaApi(d: any) {
     vegano: d.vegano,
     preferencia_preparo: d.preferenciaPreparo,
     tempo_disponivel: d.tempoDisponivel,
+    gestacao: d.gestacao ?? null,
+    gordura_pct: d.gorduraPct != null ? String(d.gorduraPct) : null,
+    peso_meta_kg: d.pesoMetaKg != null ? String(d.pesoMetaKg) : null,
+    ritmo: d.ritmo ?? null,
+    rotina_diaria: d.rotinaDiaria ?? null,
+    dias_treino: d.diasTreino ?? null,
+    minutos_treino: d.minutosTreino ?? null,
+    intensidade_treino: d.intensidadeTreino ?? null,
+    condicoes_saude: d.condicoesSaude ?? null,
   };
 }
 
@@ -231,6 +254,14 @@ export type AlimentoReconhecido = {
   proteina_100g: number;
   carboidratos_100g: number;
   gordura_100g: number;
+  /** Marca, quando é um produto embalado reconhecido ("Lacta"); vazio caso contrário. */
+  marca?: string;
+  /** "baixa": a IA não sabe bem o que é, e a pessoa precisa dizer. */
+  certeza?: "alta" | "baixa";
+  /** Os números foram lidos da tabela nutricional da embalagem. */
+  valores_do_rotulo?: boolean;
+  /** Quanto do alimento aparece na foto, em gramas: só um ponto de partida para a pessoa ajustar. */
+  gramas_estimadas?: number;
 };
 
 export type EstimativaPrato = {
