@@ -208,6 +208,8 @@ export function calcularMetas(perfil: PerfilApi | null): Metas {
   let porKg: number;
   if (perfil?.objetivo === "Emagrecer") porKg = nivel.chave === "sedentario" ? 1.6 : nivel.chave === "intenso" || nivel.chave === "muito_intenso" ? 2.0 : 1.8;
   else if (perfil?.objetivo === "Ganhar massa") porKg = treina && nivel.chave !== "leve" ? 2.0 : 1.8;
+  else if (perfil?.objetivo === "Definir e ficar mais forte") porKg = treina ? 2.0 : 1.8;
+  else if (perfil?.objetivo === "Melhorar o desempenho") porKg = treina ? 1.7 : 1.4;
   else porKg = ({ sedentario: 1.0, leve: 1.2, moderado: 1.4, intenso: 1.6, muito_intenso: 1.6 } as const)[nivel.chave];
   if (perfil?.vegano) porKg *= 1.1;
   if (idade >= 60) porKg = Math.max(porKg, 1.2);
@@ -222,7 +224,7 @@ export function calcularMetas(perfil: PerfilApi | null): Metas {
   let proteina = Math.round(pesoBase * porKg);
   proteina = Math.min(proteina, Math.round((calorias * 0.35) / 4)); // nunca passa de 35% das calorias
 
-  const fracaoGordura = perfil?.objetivo === "Emagrecer" || perfil?.objetivo === "Ganhar massa" ? 0.25 : 0.28;
+  const fracaoGordura = perfil?.objetivo === "Emagrecer" || perfil?.objetivo === "Ganhar massa" || perfil?.objetivo === "Definir e ficar mais forte" ? 0.25 : 0.28;
   const gordura = Math.round(Math.max((calorias * fracaoGordura) / 9, 0.6 * pesoBase));
   const carboidrato = Math.max(0, Math.round((calorias - proteina * 4 - gordura * 9) / 4));
 

@@ -41,7 +41,7 @@ public sealed class PerfilRequest
     [Range(20.0, 400.0, ErrorMessage = "Peso deve estar entre 20 e 400 kg")]
     public decimal PesoKg { get; set; }
 
-    [AllowedValues("Emagrecer", "Ganhar massa", "Manter o peso", "Comer mais saudável",
+    [AllowedValues("Emagrecer", "Ganhar massa", "Manter o peso", "Comer mais saudável", "Definir e ficar mais forte", "Melhorar o desempenho",
         ErrorMessage = "Objetivo inválido")]
     public string Objetivo { get; set; } = "";
 

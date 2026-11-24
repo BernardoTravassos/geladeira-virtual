@@ -98,7 +98,7 @@ function beneficioDaMeta(opcoes: {
     return `Ajustados à sua meta de ${metaCalorias} kcal`;
   }
 
-  if (objetivo === "Manter o peso" || objetivo === "Comer mais saudável") {
+  if (objetivo === "Manter o peso" || objetivo === "Comer mais saudável" || objetivo === "Definir e ficar mais forte" || objetivo === "Melhorar o desempenho") {
     return "Equilibrados sem você precisar contar nada";
   }
 

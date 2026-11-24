@@ -57,7 +57,7 @@ const CAMPOS: Campo[] = [
   { chave: "sexo", rotulo: "Sexo", icone: "users", tipo: "selecao", opcoes: ["Masculino", "Feminino", "Outro"] },
   { chave: "alturaCm", rotulo: "Altura", icone: "maximize-2", tipo: "numero" },
   { chave: "pesoKg", rotulo: "Peso", icone: "activity", tipo: "numero" },
-  { chave: "objetivo", rotulo: "Objetivo", icone: "target", tipo: "selecao", opcoes: ["Emagrecer", "Ganhar massa", "Manter o peso", "Comer mais saudável"] },
+  { chave: "objetivo", rotulo: "Objetivo", icone: "target", tipo: "selecao", opcoes: ["Emagrecer", "Ganhar massa", "Definir e ficar mais forte", "Melhorar o desempenho", "Manter o peso", "Comer mais saudável"] },
   { chave: "pesoMetaKg", rotulo: "Peso desejado", icone: "flag", tipo: "numero", opcional: true, mostrar: querMudarPeso },
   { chave: "ritmo", rotulo: "Ritmo", icone: "trending-up", tipo: "selecao", lista: OPCOES_RITMO, mostrar: querMudarPeso },
   { chave: "gorduraPct", rotulo: "Gordura corporal", icone: "percent", tipo: "numero", opcional: true },

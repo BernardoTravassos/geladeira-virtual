@@ -107,7 +107,8 @@ const perguntas: Pergunta[] = [
     chave: "objetivo",
     titulo: "Qual é o seu objetivo?",
     tipo: "selecao",
-    opcoes: ["Emagrecer", "Ganhar massa", "Manter o peso", "Comer mais saudável"],
+    opcoes: ["Emagrecer", "Ganhar massa", "Definir e ficar mais forte", "Melhorar o desempenho", "Manter o peso", "Comer mais saudável"],
+    dica: "'Definir e ficar mais forte' mantém seu peso: calorias de manutenção e proteína alta para trocar gordura por músculo.",
   },
   {
     chave: "pesoMetaKg",
