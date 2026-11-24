@@ -27,6 +27,7 @@ import DetalheRefeicaoModal from "../components/DetalheRefeicaoModal";
 import { aplicarEdicoes, carregarEdicoes, descreverItens, Edicoes, lerVinculoCache, montarPlano, restaurarEdicao, salvarEdicao, sincronizarVinculo, type VinculoNutri } from "../utils/planoNutri";
 import { encerrarSessao } from "../services/nutri";
 import { detalharRefeicao, ItemPlano } from "../utils/refeicaoDetalhe";
+import { ajustarPendentes } from "../utils/ajusteRefeicoes";
 import { useChaveDoDia } from "../utils/dia";
 import { carregarDia, carregarRecentes, nomesDoRegistro, salvarRefeicao, totaisDoRegistro, ConsultaRecente, RegistroDoDia } from "../utils/refeicoes";
 
@@ -166,7 +167,8 @@ export default function HomeScreen({ navigation, route }: any) {
     const r = refeicoesBase.find((x) => x.chave === chave);
     if (!r) return;
     navigation.navigate("Refeicao", {
-      chave: r.chave, nome: r.nome, icone: r.icone, fracaoDaMeta: r.fracaoDaMeta,
+      chave: r.chave, nome: r.nome, icone: r.icone,
+      fracaoDaMeta: ajustesDoDia[r.chave] ? ajustesDoDia[r.chave].kcalAjustada / metas.calorias : r.fracaoDaMeta,
       itensIniciais: itensIniciais?.map((i) => ({ alimentoId: i.alimentoId, gramas: i.gramas })),
       abrirCamera,
     });
@@ -194,6 +196,11 @@ export default function HomeScreen({ navigation, route }: any) {
   const refeicoesDoDia = refeicoesBase.map((r) => {
     const reg = registros[r.chave];
     return reg ? { ...r, feita: true, caloriasConsumidas: totaisDoRegistro(reg).kcal } : r;
+  });
+  const { ajustes: ajustesDoDia, aviso: avisoAjuste } = ajustarPendentes({
+    metaKcal: metas.calorias,
+    refeicoes: refeicoesDoDia.map((r) => ({ chave: r.chave, nome: r.nome, fracaoDaMeta: r.fracaoDaMeta, kcalConsumidas: r.feita ? r.caloriasConsumidas ?? 0 : undefined })),
+    objetivo: perfil?.objetivo,
   });
   const consumidas = Math.round(refeicoesDoDia.reduce((soma, r) => soma + (r.caloriasConsumidas || 0), 0));
   const progressoCalorias = Math.min(consumidas / metas.calorias, 1);
@@ -318,9 +325,11 @@ export default function HomeScreen({ navigation, route }: any) {
                   <Text style={styles.mealRowInfo}>
                     {r.feita
                       ? `${r.caloriasConsumidas} kcal registradas`
-                      : kcalPlano != null
-                        ? `${r.horario} · plano: ${kcalPlano} kcal`
-                        : `${r.horario} · ~${Math.round(metas.calorias * r.fracaoDaMeta)} kcal`}
+                      : ajustesDoDia[r.chave]
+                        ? `${r.horario} · ajustada: ~${ajustesDoDia[r.chave].kcalAjustada} kcal${kcalPlano != null ? ` (plano: ${kcalPlano})` : ""}`
+                        : kcalPlano != null
+                          ? `${r.horario} · plano: ${kcalPlano} kcal`
+                          : `${r.horario} · ~${Math.round(metas.calorias * r.fracaoDaMeta)} kcal`}
                     {delta != null && Math.abs(delta) >= 1 && (
                       <Text style={delta > 0 ? styles.deltaMais : styles.deltaMenos}>{`  ${delta > 0 ? "+" : "−"}${Math.abs(delta)} vs plano`}</Text>
                     )}
@@ -354,6 +363,12 @@ export default function HomeScreen({ navigation, route }: any) {
             );
           })}
         </View>
+        {avisoAjuste && (
+          <View style={styles.avisoAjuste} accessibilityRole="alert">
+            <Feather name="sliders" size={14} color={colors.primary} />
+            <Text style={styles.avisoAjusteTxt}>{avisoAjuste}</Text>
+          </View>
+        )}
 
         {/* Hidratação */}
         <CardAgua metaMl={calcularMetaAguaMl(perfil)} />
@@ -581,6 +596,8 @@ const criarStyles = (colors: Cores) => StyleSheet.create({
   deltaMenos: { color: colors.primary, fontWeight: "700" },
   sectionLink: { fontSize: 11, color: colors.primary, fontWeight: "600" },
   mealRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
+  avisoAjuste: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: colors.verdeSuave, borderRadius: 12, padding: 12, marginTop: -8 },
+  avisoAjusteTxt: { flex: 1, fontSize: 12.5, lineHeight: 18, color: colors.textPrimary },
   mealRowDivider: { borderBottomWidth: 1, borderBottomColor: colors.border },
   mealIcon: {
     width: 34,
