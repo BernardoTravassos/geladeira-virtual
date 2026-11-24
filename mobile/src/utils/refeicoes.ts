@@ -104,3 +104,34 @@ export function nomesDoRegistro(reg: Pick<RegistroRefeicao, "itens" | "estimativ
   }
   return (reg.estimativa?.alimentos ?? []).map((a) => a.nome).join(", ");
 }
+
+export type ConsultaRecente = {
+  /** "AAAA-MM-DD" do dia em que a refeição foi registrada. */
+  dia: string;
+  chave: string;
+  registro: RegistroRefeicao;
+};
+
+/** As últimas refeições que a pessoa registrou (foto ou digitadas), da mais recente para a mais antiga. */
+export async function carregarRecentes(limite = 3): Promise<ConsultaRecente[]> {
+  try {
+    const prefixo = "@geladeira:refeicoes:";
+    const chaves = (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(prefixo));
+    const pares = await AsyncStorage.multiGet(chaves);
+    const todas: ConsultaRecente[] = [];
+    for (const [k, bruto] of pares) {
+      if (!bruto) continue;
+      try {
+        const dia = migrarChaves(JSON.parse(bruto) as RegistroDoDia);
+        for (const [chave, registro] of Object.entries(dia)) {
+          if (registro?.registradoEm) todas.push({ dia: k.slice(prefixo.length), chave, registro });
+        }
+      } catch {
+        // dia corrompido: ignora
+      }
+    }
+    return todas.sort((a, b) => b.registro.registradoEm.localeCompare(a.registro.registradoEm)).slice(0, limite);
+  } catch {
+    return [];
+  }
+}

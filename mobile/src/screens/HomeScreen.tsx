@@ -28,8 +28,7 @@ import { aplicarEdicoes, carregarEdicoes, descreverItens, Edicoes, lerVinculoCac
 import { encerrarSessao } from "../services/nutri";
 import { detalharRefeicao, ItemPlano } from "../utils/refeicaoDetalhe";
 import { useChaveDoDia } from "../utils/dia";
-import { RECEITAS } from "../mocks/receitas";
-import { carregarDia, nomesDoRegistro, salvarRefeicao, totaisDoRegistro, RegistroDoDia } from "../utils/refeicoes";
+import { carregarDia, carregarRecentes, nomesDoRegistro, salvarRefeicao, totaisDoRegistro, ConsultaRecente, RegistroDoDia } from "../utils/refeicoes";
 
 // Cada refeição tem a sua cor, para a lista deixar de ser uma fila de bolinhas iguais.
 // No modo escuro o fundo é a própria cor do ícone, bem transparente (os pastéis
@@ -65,8 +64,14 @@ const refeicoesBase: Refeicao[] = [
   { chave: "ceia", nome: "Ceia", horario: "21:30", icone: "star", fracaoDaMeta: 0.06, feita: false },
 ];
 
-// TODO: virá da tabela "consultas". Por enquanto são as receitas de exemplo.
-const consultasRecentes = RECEITAS.slice(0, 2);
+/** "Hoje", "Ontem" ou "12/11", a partir do "AAAA-MM-DD" do registro. */
+function rotuloDoDia(dia: string): string {
+  const [a, m, d] = dia.split("-").map(Number);
+  const dias = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(a, m - 1, d).getTime()) / 86400000);
+  if (dias <= 0) return "Hoje";
+  if (dias === 1) return "Ontem";
+  return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
+}
 
 const cardapioGeradoHoje = false; // vira true quando existir uma consulta de hoje
 
@@ -82,6 +87,7 @@ export default function HomeScreen({ navigation, route }: any) {
   const [edicoes, setEdicoes] = useState<Edicoes>({});
   const [chaveAberta, setChaveAberta] = useState<string | null>(null);
   const [vinculo, setVinculo] = useState<VinculoNutri | null>(null);
+  const [consultasRecentes, setConsultasRecentes] = useState<ConsultaRecente[]>([]);
 
   // Recarrega ao voltar da tela da refeição, para o card já aparecer como "Feita".
   // Ao virar o dia (00h) a chave muda e as refeições de hoje recomeçam zeradas.
@@ -89,6 +95,7 @@ export default function HomeScreen({ navigation, route }: any) {
   useFocusEffect(
     useCallback(() => {
       carregarDia().then(setRegistros);
+      carregarRecentes(3).then(setConsultasRecentes);
       carregarEdicoes().then(setEdicoes);
       // Mostra na hora o que já se sabe do nutricionista e confere com o servidor em seguida.
       lerVinculoCache().then((v) => setVinculo(v));
@@ -357,32 +364,44 @@ export default function HomeScreen({ navigation, route }: any) {
         {/* Consultas recentes */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Consultas recentes</Text>
-          <TouchableOpacity onPress={() => navigation.navigate("Receitas")} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button">
+          <TouchableOpacity onPress={() => navigation.navigate("Historico")} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button">
             <Text style={styles.sectionLink}>Ver todas</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.card}>
-          {consultasRecentes.map((c, i) => (
-            <TouchableOpacity
-              key={c.id}
-              activeOpacity={0.7}
-              onPress={() => navigation.navigate("Receita", { id: c.id })}
-              style={[styles.mealRow, i < consultasRecentes.length - 1 && styles.mealRowDivider]}
-              accessibilityRole="button"
-              accessibilityLabel={`Ver receita: ${c.titulo}`}
-            >
-              <View style={styles.mealIcon}>
-                <Feather name="book-open" size={16} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.mealRowName}>{c.titulo}</Text>
-                <Text style={styles.mealRowInfo}>
-                  {c.quando} · {c.calorias} kcal
-                </Text>
-              </View>
-              <Feather name="chevron-right" size={16} color={colors.textSecondary} />
-            </TouchableOpacity>
-          ))}
+          {consultasRecentes.length === 0 && (
+            <Text style={[styles.mealRowInfo, { padding: 16 }]}>
+              Nada por aqui ainda. Registre uma refeição, digitando ou tirando uma foto do prato, e ela aparece nesta lista.
+            </Text>
+          )}
+          {consultasRecentes.map((c, i) => {
+            const base = refeicoesBase.find((r) => r.chave === c.chave);
+            const comFoto = !!c.registro.fotoUri || (c.registro.itens.length === 0 && !!c.registro.estimativa);
+            const nomes = nomesDoRegistro(c.registro) || base?.nome || "Refeição";
+            const kcal = Math.round(totaisDoRegistro(c.registro).kcal);
+            const hoje = rotuloDoDia(c.dia) === "Hoje";
+            return (
+              <TouchableOpacity
+                key={`${c.dia}-${c.chave}`}
+                activeOpacity={0.7}
+                onPress={() => (hoje && base ? irParaRefeicao(c.chave) : navigation.navigate("Historico"))}
+                style={[styles.mealRow, i < consultasRecentes.length - 1 && styles.mealRowDivider]}
+                accessibilityRole="button"
+                accessibilityLabel={`Ver refeição: ${nomes}`}
+              >
+                <View style={styles.mealIcon}>
+                  <Feather name={comFoto ? "camera" : "edit-3"} size={16} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.mealRowName} numberOfLines={1}>{nomes}</Text>
+                  <Text style={styles.mealRowInfo}>
+                    {rotuloDoDia(c.dia)} · {base?.nome ?? "Refeição"} · {kcal} kcal
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </ScrollView>
 
