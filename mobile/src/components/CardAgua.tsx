@@ -19,6 +19,8 @@ const LARGURA_ONDA = 260;
 type Props = {
   /** Meta de água do dia em ml (calcularMetaAguaMl). */
   metaMl: number;
+  /** Muda quando a água é registrada fora do cartão (popup de adicionar), para ele reler. */
+  versao?: number;
 };
 
 const chaveDoDia = () => {
@@ -44,7 +46,7 @@ function mensagem(fracao: number, faltaMl: number) {
  * O que a pessoa bebeu fica salvo por dia no aparelho (uma lista de goles, o
  * que permite desfazer o último toque sem zerar tudo).
  */
-export default function CardAgua({ metaMl }: Props) {
+export default function CardAgua({ metaMl, versao }: Props) {
   const colors = useCores();
   const styles = useMemo(() => criarStyles(colors), [colors]);
   const meta = metaMl;
@@ -87,7 +89,7 @@ export default function CardAgua({ metaMl }: Props) {
         })
         .catch(() => {})
         .finally(() => { setTimeout(() => { jaCarregou.current = true; }, 0); });
-    }, [meta, chaveDia]),
+    }, [meta, chaveDia, versao]),
   );
 
   // Ondas e bolhas rodam em loop, no thread nativo (não pesam a tela).

@@ -20,6 +20,8 @@ import { getProfile, gerarCardapio, ehLimiteAtingido } from "../services/api";
 import { calcularMetas, calcularMetaAguaMl, saudacao, PerfilApi } from "../utils/nutricao";
 import PaywallCard from "../components/PaywallCard";
 import CardAgua from "../components/CardAgua";
+import AdicionarRapido from "../components/AdicionarRapido";
+import { registrarAgua } from "../utils/agua";
 import { reagendarLembretes } from "../utils/lembretes";
 import { DEV } from "../config/dev";
 import ChatNutri from "../components/ChatNutri";
@@ -65,6 +67,13 @@ const refeicoesBase: Refeicao[] = [
   { chave: "ceia", nome: "Ceia", horario: "21:30", icone: "star", fracaoDaMeta: 0.06, feita: false },
 ];
 
+/** A refeição pendente com o horário mais perto de agora. */
+function refeicaoDaHora(lista: { chave: string; horario: string; feita: boolean }[]): string | undefined {
+  const agora = new Date().getHours() * 60 + new Date().getMinutes();
+  const min = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3));
+  return lista.filter((r) => !r.feita).sort((a, b) => Math.abs(min(a.horario) - agora) - Math.abs(min(b.horario) - agora))[0]?.chave;
+}
+
 /** "Hoje", "Ontem" ou "12/11", a partir do "AAAA-MM-DD" do registro. */
 function rotuloDoDia(dia: string): string {
   const [a, m, d] = dia.split("-").map(Number);
@@ -87,6 +96,8 @@ export default function HomeScreen({ navigation, route }: any) {
   const [registros, setRegistros] = useState<RegistroDoDia>({});
   const [edicoes, setEdicoes] = useState<Edicoes>({});
   const [chaveAberta, setChaveAberta] = useState<string | null>(null);
+  const [adicionando, setAdicionando] = useState(false);
+  const [versaoAgua, setVersaoAgua] = useState(0);
   const [vinculo, setVinculo] = useState<VinculoNutri | null>(null);
   const [consultasRecentes, setConsultasRecentes] = useState<ConsultaRecente[]>([]);
 
@@ -140,7 +151,7 @@ export default function HomeScreen({ navigation, route }: any) {
   useEffect(() => {
     if (route?.params?.camera) {
       navigation.setParams({ camera: undefined });
-      handleGerarCardapio();
+      setAdicionando(true);
     }
   }, [route?.params?.camera]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -371,7 +382,7 @@ export default function HomeScreen({ navigation, route }: any) {
         )}
 
         {/* Hidratação */}
-        <CardAgua metaMl={calcularMetaAguaMl(perfil)} />
+        <CardAgua metaMl={calcularMetaAguaMl(perfil)} versao={versaoAgua} />
 
 
         {/* Orientação do nutricionista (mock) */}
@@ -460,7 +471,26 @@ export default function HomeScreen({ navigation, route }: any) {
 
       <ChatNutri nutricionista={vinculo?.nutricionista} vinculoId={vinculo?.vinculoId} nomePaciente={perfil?.nome} />
 
-      <BarraInferior ativa="Home" onCamera={handleGerarCardapio} />
+      <BarraInferior ativa="Home" onCamera={() => setAdicionando(true)} />
+      <AdicionarRapido
+        visivel={adicionando}
+        onFechar={() => setAdicionando(false)}
+        refeicoes={refeicoesDoDia.map((r) => ({ chave: r.chave, nome: r.nome, horario: r.horario, feita: r.feita }))}
+        sugerida={refeicaoDaHora(refeicoesDoDia)}
+        onAgua={async (ml) => {
+          setAdicionando(false);
+          await registrarAgua(ml);
+          setVersaoAgua((v) => v + 1);
+        }}
+        onRefeicao={(chave, camera) => {
+          setAdicionando(false);
+          irParaRefeicao(chave, undefined, camera);
+        }}
+        onGeladeira={() => {
+          setAdicionando(false);
+          handleGerarCardapio();
+        }}
+      />
 
       <PaywallCard
         visivel={paywallVisivel}
