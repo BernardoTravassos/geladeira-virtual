@@ -63,6 +63,7 @@ export default function RefeicaoScreen({ navigation, route }: any) {
   const [itens, setItens] = useState<ItemPrato[]>([]);
   const [fotoUri, setFotoUri] = useState<string | undefined>();
   const [estimativa, setEstimativa] = useState<EstimativaSalva | undefined>(); // só registros antigos
+  const [jaRegistrada, setJaRegistrada] = useState(false);
   const [idsDaFoto, setIdsDaFoto] = useState<string[]>([]); // alimentos que vieram do reconhecimento
   const [perfil, setPerfil] = useState<PerfilApi | null>(null);
   const [kcalOutras, setKcalOutras] = useState(0);
@@ -106,6 +107,7 @@ export default function RefeicaoScreen({ navigation, route }: any) {
           .reduce((soma, [, reg]) => soma + totaisDoRegistro(reg).kcal, 0),
       );
       if (dia[chave]) {
+        setJaRegistrada(true);
         setItens(dia[chave].itens);
         setFotoUri(dia[chave].fotoUri);
         setEstimativa(dia[chave].estimativa);
@@ -360,6 +362,20 @@ export default function RefeicaoScreen({ navigation, route }: any) {
     setEditando(null);
   }
 
+  function apagarRegistro() {
+    Alert.alert("Apagar registro", `Apagar o registro de ${nome.toLowerCase()}? As outras refeições voltam ao valor original.`, [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Apagar",
+        style: "destructive",
+        onPress: async () => {
+          await salvarRefeicao(chave, null);
+          navigation.goBack();
+        },
+      },
+    ]);
+  }
+
   async function salvar() {
     if (itens.length === 0 && !estimativa) {
       Alert.alert("Nada registrado", "Tire uma foto do prato ou marque o que comeu.");
@@ -598,9 +614,21 @@ export default function RefeicaoScreen({ navigation, route }: any) {
             <Text style={[styles.rodapeStatus, { color: cor.texto }]}>{avaliacao.titulo}</Text>
           )}
         </View>
-        <TouchableOpacity style={styles.salvar} onPress={salvar} activeOpacity={0.85}>
-          <Text style={styles.salvarTxt}>Salvar refeição</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          {jaRegistrada && (
+            <TouchableOpacity
+              onPress={apagarRegistro}
+              style={[styles.ajusteBtn, { borderWidth: 1, borderColor: colors.erroTexto }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Apagar registro de ${nome}`}
+            >
+              <Feather name="trash-2" size={18} color={colors.erroTexto} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.salvar} onPress={salvar} activeOpacity={0.85}>
+            <Text style={styles.salvarTxt}>Salvar refeição</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Quantidade em gramas */}
