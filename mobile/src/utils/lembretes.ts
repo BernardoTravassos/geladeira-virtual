@@ -43,6 +43,12 @@ export const PADRAO: Preferencias = {
 
 const CHAVE_PREFS = "@geladeira:lembretes";
 const CHAVE_META_AGUA = "@geladeira:metaAguaMl";
+const CHAVE_ULTIMO_GOLE = "@geladeira:aguaUltimoGole";
+
+/** Anota a hora do último gole: o lembrete seguinte não chega logo depois de beber. */
+export function registrarGoleAgora() {
+  AsyncStorage.setItem(CHAVE_ULTIMO_GOLE, String(Date.now())).catch(() => {});
+}
 const CHAVE_PARABENS = "@geladeira:parabensEnviados";
 const CANAL = "lembretes";
 const DIAS_A_FRENTE = 3;
@@ -193,6 +199,7 @@ async function montarPlano() {
   const aguaHoje = (await lerJson<number[]>(`@geladeira:agua:${hoje}`, [])).filter((n) => typeof n === "number").reduce((a, b) => a + b, 0);
   const meta = Number(await AsyncStorage.getItem(CHAVE_META_AGUA)) || 0;
   const batida = meta > 0 && aguaHoje >= meta;
+  const ultimoGole = Number(await AsyncStorage.getItem(CHAVE_ULTIMO_GOLE)) || 0;
   const refeicoesHoje = await lerJson<Record<string, unknown>>(`@geladeira:refeicoes:${hoje}`, {});
   const treinosHoje = await lerJson<unknown[]>(`@geladeira:treinos:${hoje}`, []);
   const treinouHoje = Array.isArray(treinosHoje) && treinosHoje.length > 0;
@@ -206,12 +213,21 @@ async function montarPlano() {
       for (let m = prefs.agua.inicio; m <= prefs.agua.fim; m += prefs.agua.intervaloH * 60) {
         const quando = aDate(dia, m);
         if (quando <= agora) continue;
+        // Bebeu há pouco: o aviso cairia cedo demais (o ideal é espaçar os goles ao longo do dia).
+        if (ehHoje && ultimoGole && quando.getTime() - ultimoGole < prefs.agua.intervaloH * 60 * 60 * 1000 * 0.75) continue;
+        // Ritmo esperado até este horário, repartindo a meta de forma uniforme entre início e fim.
+        const janela = Math.max(1, prefs.agua.fim - prefs.agua.inicio);
+        const esperado = meta * Math.min(1, Math.max(0, (m - prefs.agua.inicio) / janela));
+        const atrasada = ehHoje && meta > 0 && aguaHoje < esperado * 0.7;
+        // Um copo por vez: não se recomenda compensar de uma vez (muito volume junto passa direto).
         const corpo =
           ehHoje && meta > 0
-            ? aguaHoje === 0
-              ? `Você ainda não bebeu nada hoje. A meta é ${litros(meta)} L.`
-              : `Você bebeu ${litros(aguaHoje)} L, faltam ${litros(meta - aguaHoje)} L para a meta.`
-            : "Que tal um copo agora? Seu corpo agradece.";
+            ? atrasada
+              ? `Você bebeu ${litros(aguaHoje)} L e está abaixo do ritmo. Beba um copo agora e siga ao longo do dia, sem exagerar de uma vez.`
+              : aguaHoje === 0
+                ? `Que tal um copo d'água? A meta de hoje é ${litros(meta)} L.`
+                : `Um copo agora ajuda. Você já bebeu ${litros(aguaHoje)} L de ${litros(meta)} L.`
+            : "Que tal um copo d'água agora? Seu corpo agradece.";
         lista.push({ titulo: "Hora de beber água 💧", corpo, quando });
       }
     }
@@ -221,13 +237,35 @@ async function montarPlano() {
       for (const r of MODELO_REFEICOES) {
         if (ehHoje && refeicoesHoje[r.chave]) continue; // já registrou: sem lembrete
         const [h, mi] = r.horario.split(":").map(Number);
-        const quando = aDate(dia, h * 60 + mi);
-        if (quando <= agora) continue;
-        lista.push({
-          titulo: `Hora do ${r.nome.toLowerCase()} 🍽️`,
-          corpo: temNutri ? "Veja a indicação do seu nutricionista e registre o que comeu." : "Registre o que você comeu para acompanhar o seu dia.",
-          quando,
-        });
+        const minutos = h * 60 + mi;
+        const nome = r.nome.toLowerCase();
+        const hora = hhmm(minutos);
+        const antes = aDate(dia, minutos - 30);
+        const na_hora = aDate(dia, minutos);
+        const depois = aDate(dia, minutos + 60);
+        // 30 min antes: um aviso leve, para a pessoa se organizar.
+        if (antes > agora) {
+          lista.push({
+            titulo: `Já já é hora do ${nome} 😋`,
+            corpo: temNutri ? `Daqui a 30 minutos (${hora}). Que tal já separar o que o seu nutricionista indicou?` : `Daqui a 30 minutos (${hora}). Vá preparando algo gostoso e nutritivo!`,
+            quando: antes,
+          });
+        }
+        if (na_hora > agora) {
+          lista.push({
+            titulo: `Hora do ${nome} 🍽️`,
+            corpo: temNutri ? "Veja a indicação do seu nutricionista e registre o que comeu." : "Registre o que você comeu para acompanhar o seu dia.",
+            quando: na_hora,
+          });
+        }
+        // 1 h depois: só chega se a refeição continuar sem registro (o plano é refeito ao registrar).
+        if (depois > agora) {
+          lista.push({
+            titulo: `Você já fez o ${nome}? 🤔`,
+            corpo: "Ainda não vi o registro. Se você já comeu, anote para o seu dia ficar certinho; se não, ainda dá tempo!",
+            quando: depois,
+          });
+        }
       }
     }
 
@@ -260,6 +298,11 @@ async function montarPlano() {
     }
     await AsyncStorage.setItem(CHAVE_PARABENS, JSON.stringify(enviados));
   }
+
+  // O iPhone guarda no máximo 64 notificações agendadas e descarta o resto sem avisar:
+  // fica com as mais próximas (o plano é refeito a cada abertura do app).
+  lista.sort((x, y) => x.quando.getTime() - y.quando.getTime());
+  lista.splice(60);
 
   for (const a of lista) {
     if (a.id && idsPendentes.has(a.id)) continue; // já está agendado

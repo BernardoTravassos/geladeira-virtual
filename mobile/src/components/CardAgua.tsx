@@ -1,14 +1,15 @@
 import { useCores } from "../theme/tema";
 import type { Cores } from "../theme/colors";
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, AppState } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { gravarDia } from "../utils/sincronizacao";
 import { useFocusEffect } from "@react-navigation/native";
 import { sombra } from "../theme/colors";
 import { useChaveDoDia } from "../utils/dia";
-import { registrarMetaAgua, reagendarLembretes } from "../utils/lembretes";
+import { registrarMetaAgua, reagendarLembretes, registrarGoleAgora } from "../utils/lembretes";
+import { sincronizarWidgetAgua } from "../utils/widgetAgua";
 
 const AGUA = "#35A7E8";
 const AGUA_ESCURA = "#1C86C6";
@@ -74,21 +75,29 @@ export default function CardAgua({ metaMl }: Props) {
   const eraBatida = useRef(false);
 
   // Carrega o que foi bebido hoje (e recarrega ao voltar para a tela).
-  useFocusEffect(
-    useCallback(() => {
-      AsyncStorage.getItem(chaveDoDia())
-        .then((bruto) => {
-          const lista = bruto ? JSON.parse(bruto) : [];
-          const validos: number[] = Array.isArray(lista) ? lista.filter((n: unknown) => typeof n === "number") : [];
-          // Já estava batida ao abrir o app: sem festa, ela só vale para o gole que bate a meta.
-          eraBatida.current = validos.reduce((a, b) => a + b, 0) >= meta;
-          jaCarregou.current = false; // o pulo de "carregou" não conta como gole
-          setGoles(validos);
-        })
-        .catch(() => {})
-        .finally(() => { setTimeout(() => { jaCarregou.current = true; }, 0); });
-    }, [meta, chaveDia]),
-  );
+  const carregar = useCallback(() => {
+    // Antes de ler, traz a água que a pessoa bebeu pelo widget da tela inicial (se houver).
+    sincronizarWidgetAgua(meta)
+      .then(() => AsyncStorage.getItem(chaveDoDia()))
+      .then((bruto) => {
+        const lista = bruto ? JSON.parse(bruto) : [];
+        const validos: number[] = Array.isArray(lista) ? lista.filter((n: unknown) => typeof n === "number") : [];
+        // Já estava batida ao abrir o app: sem festa, ela só vale para o gole que bate a meta.
+        eraBatida.current = validos.reduce((a, b) => a + b, 0) >= meta;
+        jaCarregou.current = false; // o pulo de "carregou" não conta como gole
+        setGoles(validos);
+      })
+      .catch(() => {})
+      .finally(() => { setTimeout(() => { jaCarregou.current = true; }, 0); });
+  }, [meta, chaveDia]);
+
+  useFocusEffect(carregar);
+
+  // Voltar do segundo plano (por exemplo, depois de usar o widget) também recarrega.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (estado) => { if (estado === "active") carregar(); });
+    return () => sub.remove();
+  }, [carregar]);
 
   // Ondas e bolhas rodam em loop, no thread nativo (não pesam a tela).
   useEffect(() => {
@@ -177,7 +186,8 @@ export default function CardAgua({ metaMl }: Props) {
 
   function salvar(lista: number[]) {
     setGoles(lista);
-    gravarDia(chaveDoDia(), JSON.stringify(lista)).then(() => reagendarLembretes()).catch(() => {});
+    if (lista.length > goles.length) registrarGoleAgora(); // desfazer um gole não conta como beber
+    gravarDia(chaveDoDia(), JSON.stringify(lista)).then(() => { reagendarLembretes(); sincronizarWidgetAgua(meta); }).catch(() => {});
   }
   const beber = (ml: number) => salvar([...goles, ml]);
   const desfazer = () => salvar(goles.slice(0, -1));

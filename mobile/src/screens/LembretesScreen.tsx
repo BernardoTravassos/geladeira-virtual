@@ -66,7 +66,7 @@ export default function LembretesScreen({ navigation }: any) {
         )}
 
         <View style={[styles.card, sombra, !disponivel && { opacity: 0.5 }]} pointerEvents={disponivel ? "auto" : "none"}>
-          <Linha icone="droplet" cor="#35A7E8" titulo="Beber água" sub="Avisa de tempos em tempos e para quando você bate a meta" ligado={prefs.agua.ativo} aoAlternar={(v: boolean) => alternar("agua", v)} styles={styles} colors={colors} />
+          <Linha icone="droplet" cor="#35A7E8" titulo="Beber água" sub="Um copo por aviso, espaçado ao longo do dia; não avisa logo depois de beber e para na meta" ligado={prefs.agua.ativo} aoAlternar={(v: boolean) => alternar("agua", v)} styles={styles} colors={colors} />
           {prefs.agua.ativo && (
             <View style={styles.detalhe}>
               <Text style={styles.rotulo}>A cada</Text>

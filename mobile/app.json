@@ -55,13 +55,38 @@
       "react-native-health-connect",
       "@livekit/react-native-expo-plugin",
       "@config-plugins/react-native-webrtc",
-      ["expo-notifications", { "color": "#1F5D3A" }],
+      [
+        "expo-notifications",
+        {
+          "color": "#1F5D3A"
+        }
+      ],
       [
         "expo-build-properties",
         {
           "android": {
             "minSdkVersion": 26
           }
+        }
+      ],
+      [
+        "expo-widgets",
+        {
+          "enableAndroid": true,
+          "widgets": [
+            {
+              "name": "AguaWidget",
+              "displayName": "Água de hoje",
+              "description": "Mostra a água bebida hoje e deixa adicionar com um toque.",
+              "android": {
+                "minWidth": 180,
+                "minHeight": 110,
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "initialLayout": "./src/widgets/AguaWidget.tsx"
+              }
+            }
+          ]
         }
       ]
     ],
