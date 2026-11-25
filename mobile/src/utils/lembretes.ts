@@ -241,7 +241,6 @@ async function montarPlano() {
         const nome = r.nome.toLowerCase();
         const hora = hhmm(minutos);
         const antes = aDate(dia, minutos - 30);
-        const na_hora = aDate(dia, minutos);
         const depois = aDate(dia, minutos + 60);
         // 30 min antes: um aviso leve, para a pessoa se organizar.
         if (antes > agora) {
@@ -249,13 +248,6 @@ async function montarPlano() {
             titulo: `Já já é hora do ${nome} 😋`,
             corpo: temNutri ? `Daqui a 30 minutos (${hora}). Que tal já separar o que o seu nutricionista indicou?` : `Daqui a 30 minutos (${hora}). Vá preparando algo gostoso e nutritivo!`,
             quando: antes,
-          });
-        }
-        if (na_hora > agora) {
-          lista.push({
-            titulo: `Hora do ${nome} 🍽️`,
-            corpo: temNutri ? "Veja a indicação do seu nutricionista e registre o que comeu." : "Registre o que você comeu para acompanhar o seu dia.",
-            quando: na_hora,
           });
         }
         // 1 h depois: só chega se a refeição continuar sem registro (o plano é refeito ao registrar).
