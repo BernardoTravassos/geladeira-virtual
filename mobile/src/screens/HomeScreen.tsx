@@ -100,16 +100,11 @@ export default function HomeScreen({ navigation, route }: any) {
       carregarEdicoes().then(setEdicoes);
       // Mostra na hora o que já se sabe do nutricionista e confere com o servidor em seguida.
       lerVinculoCache().then((v) => setVinculo(v));
-      sincronizarVinculo().then((v) => setVinculo(v));
+      // O perfil é relido depois do vínculo: as metas combinadas na consulta vêm junto dele.
+      sincronizarVinculo().then((v) => { setVinculo(v); getProfile().then(setPerfil).catch(() => {}); });
       reagendarLembretes(); // o plano de avisos acompanha o que a pessoa já fez hoje
     }, [chaveDoDia]),
   );
-
-  useEffect(() => {
-    getProfile()
-      .then(setPerfil)
-      .catch(() => {}); // sem rede/API: a tela ainda abre com valores padrão
-  }, []);
 
   async function handleGerarCardapio() {
     // Atalho de desenvolvimento: ver o card sem depender do backend.

@@ -1,15 +1,21 @@
 import React from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import type { DiarioReal } from "../../utils/diarioPaciente";
 import { fmtL, type Alvo, type AbaPainel, type EstadoPainel, type MetaCombinada, type ResumoDia } from "../../utils/reuniaoDados";
 import { Barra, HUD, Medidor, Pulso, Vidro } from "./hud";
 import Folha from "./Folha";
+import AbaPerfil from "./AbaPerfil";
+import EditorItens from "./EditorItens";
+import { REFEICOES_DA_ROTINA } from "../../utils/diarioPaciente";
+import type { Comando, DadosPaciente } from "../../utils/reuniaoEdicao";
+import type { ItemPrato } from "../../utils/refeicoes";
 
 const ABAS = [
   { chave: "hoje", rotulo: "Hoje", icone: "activity" },
   { chave: "plano", rotulo: "Plano", icone: "clipboard" },
   { chave: "metas", rotulo: "Metas", icone: "target" },
+  { chave: "perfil", rotulo: "Perfil", icone: "user" },
 ];
 
 export type MetasBase = { kcal: number; aguaMl: number; proteina: number; carbo: number; gordura: number };
@@ -27,6 +33,14 @@ type Props = {
   diario?: DiarioReal | null;
   aoCombinar?: (m: MetaCombinada) => void;
   nomePaciente: string;
+  /** Perfil e registros de hoje, mandados pelo celular do paciente. */
+  dados?: DadosPaciente | null;
+  /** Só do nutricionista: pede ao celular do paciente que grave uma alteração. */
+  aoComando?: (c: Comando) => void;
+  /** Só do nutricionista: troca os alimentos de uma refeição do plano. */
+  aoEditarPlano?: (chave: string, itens: ItemPrato[]) => void;
+  /** Resultado da última alteração. */
+  situacao?: { ok: boolean; texto: string } | null;
 };
 
 /**
@@ -58,6 +72,13 @@ export default function PainelCompartilhado(p: Props) {
   return (
     <Folha aberta={p.aberta} aoFechar={p.aoFechar} bottom={p.bottom} titulo={p.titulo} abas={ABAS} aba={estado.aba} aoTrocar={p.editavel ? (c) => muda({ aba: c as AbaPainel }) : undefined}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 16 }}>
+        {p.editavel && !!p.situacao && <Text style={[s.nota, { color: p.situacao.ok ? HUD.verde : HUD.rosa }]}>{p.situacao.texto}</Text>}
+        {estado.aba === "perfil" && (
+          <>
+            <Text style={s.dica}>{p.editavel ? "Toque em um dado para corrigir: ele é salvo no app do paciente." : "Estes são os seus dados."}</Text>
+            <AbaPerfil perfil={p.dados?.perfil ?? null} aoSalvar={p.editavel && p.aoComando ? (campo, valor) => p.aoComando!({ op: "perfil", campo, valor }) : undefined} />
+          </>
+        )}
         {estado.aba === "hoje" && (
           <>
             <View style={s.linha}>
@@ -93,19 +114,31 @@ export default function PainelCompartilhado(p: Props) {
           </>
         )}
 
+        {estado.aba === "hoje" && p.editavel && p.aoComando && (
+          <RegistrosHoje dados={p.dados ?? null} aoComando={p.aoComando} />
+        )}
+
         {estado.aba === "plano" && (
           <>
             <Text style={s.dica}>{p.editavel ? "Toque em uma refeição para abri-la na tela do paciente." : "Sua nutricionista está mostrando o seu plano."}</Text>
             {!estado.plano ? <ActivityIndicator color={HUD.verde} /> : estado.plano.length === 0 ? (
-              <Vidro><Text style={s.nota}>{p.editavel ? "Você ainda não montou o plano deste paciente. Faça isso na aba Plano da tela dele." : "O plano ainda não foi montado."}</Text></Vidro>
+              <Vidro><Text style={s.nota}>{p.editavel ? "Não foi possível carregar o plano deste paciente. Feche e abra o painel." : "O plano ainda não foi montado."}</Text></Vidro>
             ) : estado.plano.map((x, i) => {
               const corpo = (
                 <TouchableOpacity activeOpacity={p.editavel ? 0.7 : 1} disabled={!p.editavel} onPress={() => muda({ sel: estado.sel === i ? null : i })} style={{ gap: 4 }}>
                   <Text style={s.secao}>{x.nome}{x.horario ? ` · ${x.horario}` : ""}</Text>
-                  <Text style={s.refTxt}>{x.sugestao}</Text>
+                  <Text style={s.refTxt}>{x.sugestao || "Sem alimentos"}</Text>
                 </TouchableOpacity>
               );
-              return estado.sel === i ? <Pulso key={i} cor={HUD.verde}>{corpo}</Pulso> : <Vidro key={i}>{corpo}</Vidro>;
+              const editor = p.editavel && p.aoEditarPlano && estado.sel === i ? (
+                <View style={{ marginTop: 10 }}>
+                  <EditorItens itens={x.itens}
+                    aoGramas={(id, d) => p.aoEditarPlano!(x.chave, x.itens.map((it) => (it.alimentoId === id ? { ...it, gramas: Math.max(5, it.gramas + d), medida: undefined } : it)))}
+                    aoRemover={(id) => p.aoEditarPlano!(x.chave, x.itens.filter((it) => it.alimentoId !== id))}
+                    aoAdicionar={(id, g) => { if (!x.itens.some((it) => it.alimentoId === id)) p.aoEditarPlano!(x.chave, [...x.itens, { alimentoId: id, gramas: g }]); }} />
+                </View>
+              ) : null;
+              return estado.sel === i ? <Pulso key={x.chave} cor={HUD.verde}>{corpo}{editor}</Pulso> : <Vidro key={x.chave}>{corpo}</Vidro>;
             })}
           </>
         )}
@@ -134,6 +167,54 @@ export default function PainelCompartilhado(p: Props) {
   );
 }
 
+/** Água e refeições registradas hoje, com os controles de correção do nutricionista. */
+function RegistrosHoje({ dados, aoComando }: { dados: DadosPaciente | null; aoComando: (c: Comando) => void }) {
+  const [aberta, setAberta] = React.useState<string | null>(null);
+  if (!dados) return <Vidro><Text style={s.nota}>Para corrigir os registros, o paciente precisa estar na chamada.</Text></Vidro>;
+  const total = dados.agua.reduce((a, b) => a + b, 0);
+  return (
+    <Vidro style={{ gap: 10 }}>
+      <Text style={s.secao}>Corrigir registros de hoje</Text>
+      <Text style={s.refTxt}>Água: {fmtL(total)}</Text>
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        <Atalho texto="+250 ml" onPress={() => aoComando({ op: "agua-mais", ml: 250 })} />
+        <Atalho texto="+500 ml" onPress={() => aoComando({ op: "agua-mais", ml: 500 })} />
+        {dados.agua.length > 0 && <Atalho texto={`Desfazer ${dados.agua[dados.agua.length - 1]} ml`} onPress={() => aoComando({ op: "agua-desfazer" })} />}
+      </View>
+      {dados.refeicoes.length === 0 && <Text style={s.nota}>Nenhuma refeição registrada hoje.</Text>}
+      {dados.refeicoes.map((r) => (
+        <View key={r.chave} style={{ gap: 8 }}>
+          <TouchableOpacity style={s.refeicao} onPress={() => setAberta(aberta === r.chave ? null : r.chave)} accessibilityRole="button">
+            <Feather name={aberta === r.chave ? "chevron-up" : "chevron-down"} size={15} color={HUD.verde} />
+            <Text style={s.refTxt}>{REFEICOES_DA_ROTINA.find((m) => m.chave === r.chave)?.nome ?? r.chave} · {r.kcal} kcal</Text>
+          </TouchableOpacity>
+          {aberta === r.chave && (
+            <>
+              {r.foto.length > 0 && <Text style={s.nota}>Estimativa pela foto: {r.foto.join(", ")}. Se adicionar um alimento, a estimativa é substituída pela lista.</Text>}
+              <EditorItens itens={r.itens}
+                aoGramas={(alimentoId, delta) => aoComando({ op: "refeicao-gramas", chave: r.chave, alimentoId, delta })}
+                aoRemover={(alimentoId) => aoComando({ op: "refeicao-remover-item", chave: r.chave, alimentoId })}
+                aoAdicionar={(alimentoId, gramas) => aoComando({ op: "refeicao-adicionar", chave: r.chave, alimentoId, gramas })} />
+              <Atalho texto="Apagar este registro" cor={HUD.rosa} onPress={() => Alert.alert("Apagar registro", "Apagar esta refeição do dia do paciente?", [
+                { text: "Cancelar", style: "cancel" },
+                { text: "Apagar", style: "destructive", onPress: () => aoComando({ op: "refeicao-apagar", chave: r.chave }) },
+              ])} />
+            </>
+          )}
+        </View>
+      ))}
+    </Vidro>
+  );
+}
+
+function Atalho({ texto, onPress, cor }: { texto: string; onPress: () => void; cor?: string }) {
+  return (
+    <TouchableOpacity style={s.atalho} onPress={onPress} accessibilityRole="button">
+      <Text style={[s.refTxt, { fontWeight: "800" }, cor ? { color: cor } : null]}>{texto}</Text>
+    </TouchableOpacity>
+  );
+}
+
 function Passo({ icone, cor, rotulo, valor, menos, mais, editavel }: { icone: any; cor: string; rotulo: string; valor: string; menos: () => void; mais: () => void; editavel: boolean }) {
   return (
     <View style={{ gap: 6 }}>
@@ -156,6 +237,7 @@ const s = StyleSheet.create({
   secao: { color: HUD.texto, fontSize: 13, fontWeight: "800", letterSpacing: 0.3 },
   refeicao: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 },
   refTxt: { color: HUD.texto, fontSize: 13, lineHeight: 18 },
+  atalho: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.1)", borderWidth: 1, borderColor: HUD.borda, alignSelf: "flex-start" },
   passo: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   passoBt: { width: 46, height: 46, borderRadius: 23, backgroundColor: "rgba(255,255,255,0.1)", borderWidth: 1, borderColor: HUD.borda, alignItems: "center", justifyContent: "center" },
   passoVal: { fontSize: 28, fontWeight: "800", textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 12 },

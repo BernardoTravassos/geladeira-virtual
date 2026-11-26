@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { fmtL, type EstadoPainel, type Foco, type MetaCombinada, type ResumoDia } from "../../utils/reuniaoDados";
 import { HUD, Pulso } from "./hud";
 import PainelCompartilhado from "./PainelCompartilhado";
+import type { DadosPaciente } from "../../utils/reuniaoEdicao";
 
 const TITULO_ALVO: Record<string, { icone: any; cor: string }> = {
   kcal: { icone: "zap", cor: HUD.verde },
@@ -14,13 +15,13 @@ const TITULO_ALVO: Record<string, { icone: any; cor: string }> = {
 };
 
 /** Lado do paciente: o mesmo painel, só de leitura, que acompanha o que a nutricionista faz. */
-export default function PainelPaciente({ aberta, aoFechar, bottom, resumo, meta, estado }: {
-  aberta: boolean; aoFechar: () => void; bottom: number; resumo: ResumoDia | null; meta?: MetaCombinada; estado: EstadoPainel;
+export default function PainelPaciente({ aberta, aoFechar, bottom, resumo, meta, estado, dados }: {
+  dados?: DadosPaciente | null; aberta: boolean; aoFechar: () => void; bottom: number; resumo: ResumoDia | null; meta?: MetaCombinada; estado: EstadoPainel;
 }) {
   const base = { kcal: resumo?.metaKcal ?? 0, aguaMl: resumo?.metaAguaMl ?? 0, proteina: resumo?.metaProteina ?? 0, carbo: resumo?.metaCarbo ?? 0, gordura: resumo?.metaGordura ?? 0 };
   return (
     <PainelCompartilhado aberta={aberta} aoFechar={aoFechar} bottom={bottom} editavel={false} estado={estado} resumo={resumo} metasBase={base}
-      metaCombinada={meta} titulo="Meu dia · ao vivo" nomePaciente="" />
+      metaCombinada={meta} dados={dados} titulo="Meu dia · ao vivo" nomePaciente="" />
   );
 }
 

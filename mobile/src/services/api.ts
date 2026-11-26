@@ -169,6 +169,18 @@ function paraFormatoDaApi(d: any) {
 
 // Retorna o perfil do usuário logado, ou null se ele ainda não preencheu o wizard (404).
 export async function getProfile() {
+  const perfil = await buscarPerfil();
+  if (!perfil) return perfil;
+  // Metas combinadas com o nutricionista (guardadas junto do vínculo, ver utils/planoNutri.ts).
+  try {
+    const bruto = await AsyncStorage.getItem("@geladeira:vinculoNutri");
+    const metas = bruto ? JSON.parse(bruto)?.metas : null;
+    if (metas) return { ...perfil, meta_kcal: metas.kcal ?? null, meta_agua_ml: metas.aguaMl ?? null };
+  } catch {}
+  return perfil;
+}
+
+async function buscarPerfil() {
   if (DEV.MODO_DEMO) {
     const salvo = await AsyncStorage.getItem(CHAVE_PERFIL_DEMO);
     if (!salvo) return null;

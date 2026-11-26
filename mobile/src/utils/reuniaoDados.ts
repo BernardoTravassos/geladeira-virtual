@@ -4,6 +4,8 @@ import { calcularMetaAguaMl, calcularMetas } from "./nutricao";
 import { carregarDia, totaisDoRegistro } from "./refeicoes";
 import { lerSaudeDoDia } from "./saude";
 import { chaveData } from "./dia";
+import type { Comando, DadosPaciente } from "./reuniaoEdicao";
+import type { ItemPrato } from "./refeicoes";
 
 /**
  * O que os dois lados trocam DURANTE a reunião, pelo canal de dados do LiveKit
@@ -29,8 +31,8 @@ export type Foco = { alvo: Alvo; titulo?: string; itens?: string[]; msg?: string
 export type MetaCombinada = { kcal?: number; aguaMl?: number };
 export type Fechamento = { notas: string; meta?: MetaCombinada; focos: string[]; duracaoSeg: number; nutricionista: string };
 
-export type AbaPainel = "hoje" | "plano" | "metas";
-export type ItemPlanoPainel = { nome: string; horario?: string; sugestao: string };
+export type AbaPainel = "hoje" | "plano" | "metas" | "perfil";
+export type ItemPlanoPainel = { chave: string; nome: string; horario?: string; sugestao: string; itens: ItemPrato[] };
 /** O painel compartilhado: o nutricionista mexe, e o paciente vê o mesmo, ao vivo. */
 export type EstadoPainel = {
   aberto: boolean;
@@ -50,7 +52,13 @@ export type Mensagem =
   | { t: "resumo"; d: ResumoDia }
   | { t: "foco"; d: Foco }
   | { t: "meta"; d: MetaCombinada }
-  | { t: "fim"; d: Fechamento };
+  | { t: "fim"; d: Fechamento }
+  /** Paciente → nutricionista: perfil e registros de hoje, para editar. */
+  | { t: "dados"; d: DadosPaciente }
+  /** Nutricionista → paciente: uma alteração para o celular dele gravar. */
+  | { t: "comando"; d: Comando }
+  /** Paciente → nutricionista: se a alteração foi gravada. */
+  | { t: "resposta"; d: { ok: boolean; texto: string } };
 
 export const codificar = (m: Mensagem): Uint8Array => new TextEncoder().encode(JSON.stringify(m));
 

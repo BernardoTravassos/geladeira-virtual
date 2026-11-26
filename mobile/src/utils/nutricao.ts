@@ -23,6 +23,9 @@ export type PerfilApi = {
   minutos_treino?: number | null;
   intensidade_treino?: string | null; // leve | moderada | intensa
   condicoes_saude?: string | null; // "Diabetes, Hipertensão"
+  // Metas combinadas com o nutricionista: quando existem, valem no lugar do cálculo.
+  meta_kcal?: number | null;
+  meta_agua_ml?: number | null;
 };
 
 export type NivelAtividade = "sedentario" | "leve" | "moderado" | "intenso" | "muito_intenso";
@@ -203,6 +206,12 @@ export function calcularMetas(perfil: PerfilApi | null): Metas {
   const resto = ajusteTotal - extraGestacao;
   const ajusteObjetivo = Math.abs(resto) < 10 ? 0 : resto;
 
+  const metaDoNutri = Number(perfil?.meta_kcal) || 0;
+  if (metaDoNutri > 0) {
+    calorias = metaDoNutri;
+    avisos.push("Meta de calorias combinada com o seu nutricionista.");
+  }
+
   // Proteína (g por kg do peso de referência)
   const treina = nivel.chave !== "sedentario";
   let porKg: number;
@@ -288,6 +297,8 @@ export function calcularMetas(perfil: PerfilApi | null): Metas {
  * nível de atividade, que repõe o suor (+300 ml na gestação, +700 ml amamentando). Limitada entre 1,5 e 4,5 L.
  */
 export function calcularMetaAguaMl(perfil: PerfilApi | null): number {
+  const metaDoNutri = Number(perfil?.meta_agua_ml) || 0;
+  if (metaDoNutri > 0) return metaDoNutri;
   const peso = Number(perfil?.peso_kg);
   if (!peso) return 2000;
   const m = (perfil?.altura_cm || 170) / 100;

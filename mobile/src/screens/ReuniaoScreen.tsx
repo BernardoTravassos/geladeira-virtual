@@ -11,6 +11,7 @@ import Ladrilho from "../components/reuniao/Ladrilho";
 import PainelNutri, { NotasNutri } from "../components/reuniao/PainelNutri";
 import PainelPaciente, { AvisoDaNutri } from "../components/reuniao/PainelPaciente";
 import ReuniaoJitsi from "./ReuniaoJitsi";
+import { aplicarComando, coletarDados, type Comando, type DadosPaciente } from "../utils/reuniaoEdicao";
 
 /**
  * Reunião por vídeo com a cara do app: o vídeo e o áudio passam pelo LiveKit,
@@ -47,6 +48,11 @@ const formatarTempo = (seg: number) => `${String(Math.floor(seg / 60)).padStart(
 const NOME_ALVO: Record<string, string> = { kcal: "Calorias", agua: "Água", treino: "Treino", macros: "Macros", refeicao: "Plano" };
 const PAINEL_INICIAL: EstadoPainel = { aberto: false, aba: "hoje" };
 
+/** Envia por uma sala específica (o ouvinte de dados nasce antes de `enviar` existir). */
+function publicar(room: any, m: Mensagem) {
+  try { room.localParticipant?.publishData(codificar(m), { reliable: true, topic: TOPICO }); } catch {}
+}
+
 function ReuniaoNativa({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
   const { height: alturaTela } = useWindowDimensions(); // hooks ficam sempre antes dos returns condicionais
@@ -75,6 +81,12 @@ function ReuniaoNativa({ route, navigation }: any) {
   const [focos, setFocos] = useState<string[]>([]);
   const [fechamento, setFechamento] = useState<Fechamento | null>(null);
   const [salvo, setSalvo] = useState<"nao" | "ok" | "erro">("nao");
+
+  // Edição durante a conversa
+  const [dadosPaciente, setDadosPaciente] = useState<DadosPaciente | null>(null);
+  const [situacao, setSituacao] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [avisoEdicao, setAvisoEdicao] = useState("");
+  const filaComandos = useRef<Promise<unknown>>(Promise.resolve());
 
   const bump = useCallback(() => repintar((n) => n + 1), []);
 
@@ -110,6 +122,28 @@ function ReuniaoNativa({ route, navigation }: any) {
           if (!m) return;
           if (m.t === "resumo") setResumo(m.d);
           else if (m.t === "painel") { setEstadoPainel(m.d); if (!m.d.aberto) setDispensado(false); }
+          else if (m.t === "dados") setDadosPaciente(m.d);
+          else if (m.t === "resposta") setSituacao(m.d);
+          else if (m.t === "comando") {
+            // Só o celular do paciente grava, e um comando por vez, na ordem em que chegam.
+            if (d.papel !== "paciente") return;
+            filaComandos.current = filaComandos.current.then(async () => {
+              let resposta: { ok: boolean; texto: string };
+              try {
+                const aviso = await aplicarComando(m.d);
+                if (vivo) setAvisoEdicao(`${d.nomeNutri.split(" ")[0]}: ${aviso}`);
+                resposta = { ok: true, texto: "✓ Salvo no app do paciente." };
+              } catch (e: any) {
+                resposta = { ok: false, texto: e?.message || "Não foi possível salvar no app do paciente." };
+              }
+              const novos = await coletarDados().catch(() => null);
+              if (novos && vivo) setDadosPaciente(novos);
+              if (novos) publicar(room, { t: "dados", d: novos });
+              publicar(room, { t: "resposta", d: resposta });
+              const r = await resumoDoDia().catch(() => null);
+              if (r) { if (vivo) setResumo(r); publicar(room, { t: "resumo", d: r }); }
+            });
+          }
           else if (m.t === "meta") { setMetaCombinada(m.d); setAvisoMeta(m.d); }
           else if (m.t === "fim") { setFechamento(m.d); setFase("encerrada"); room.disconnect().catch?.(() => {}); }
         });
@@ -160,7 +194,24 @@ function ReuniaoNativa({ route, navigation }: any) {
     if (!r) return;
     setResumo(r);
     enviar({ t: "resumo", d: r });
+    const d = await coletarDados().catch(() => null);
+    if (d) { setDadosPaciente(d); enviar({ t: "dados", d }); }
   }, [enviar]);
+
+  const comandar = useCallback((c: Comando) => {
+    if (!sala.current || sala.current.remoteParticipants.size === 0) {
+      setSituacao({ ok: false, texto: c.op === "plano" ? "✓ Salvo. O paciente recebe quando abrir o app." : "O paciente precisa estar na chamada para salvar." });
+      return;
+    }
+    setSituacao({ ok: true, texto: "Salvando…" });
+    enviar({ t: "comando", d: c });
+  }, [enviar]);
+
+  useEffect(() => {
+    if (!avisoEdicao) return;
+    const t = setTimeout(() => setAvisoEdicao(""), 6000);
+    return () => clearTimeout(t);
+  }, [avisoEdicao]);
   useEffect(() => {
     if (!dados || ehNutri || (fase !== "aguardando" && fase !== "emChamada")) return;
     publicarResumo();
@@ -325,11 +376,13 @@ function ReuniaoNativa({ route, navigation }: any) {
       {ehNutri && dados && (
         <>
           <PainelNutri aberta={estadoPainel.aberto} aoFechar={() => mudarPainel({ aberto: false })} bottom={fundoSheet} pacienteId={dados.pacienteId} nomePaciente={nomePaciente} perfil={perfil ?? null}
-            resumo={resumo} estado={estadoPainel} aoMudar={mudarPainel} metaCombinada={metaCombinada} aoCombinar={combinarMeta} />
+            resumo={resumo} estado={estadoPainel} aoMudar={mudarPainel} metaCombinada={metaCombinada} aoCombinar={combinarMeta}
+            dados={outro ? dadosPaciente : null} aoComando={comandar} situacao={situacao} aoSituacao={setSituacao} />
           <NotasNutri aberta={notasAbertas} aoFechar={() => setNotasAbertas(false)} bottom={fundoSheet} notas={notas} aoMudar={setNotas} focos={focos} />
         </>
       )}
-      {!ehNutri && <PainelPaciente aberta={painelVisivelPaciente} aoFechar={fecharPaciente} bottom={fundoSheet} resumo={resumo} meta={metaCombinada} estado={estadoPainel} />}
+      {!ehNutri && <PainelPaciente aberta={painelVisivelPaciente} aoFechar={fecharPaciente} bottom={fundoSheet} resumo={resumo} meta={metaCombinada} estado={estadoPainel} dados={dadosPaciente} />}
+      {!!avisoEdicao && <View style={[styles.avisoEdicao, { top: insets.top + 8 }]} pointerEvents="none"><Text style={styles.avisoEdicaoTxt}>{avisoEdicao}</Text></View>}
     </View>
   );
 }
@@ -347,6 +400,8 @@ function Botao({ icone, ativo, onPress, rotulo, styles, destaque }: { icone: any
 
 const criarStyles = () => StyleSheet.create({
   tela: { flex: 1 },
+  avisoEdicao: { position: "absolute", right: 12, left: 150, backgroundColor: "rgba(0,0,0,0.75)", borderRadius: 14, borderWidth: 1, borderColor: HUD.verde, padding: 10 },
+  avisoEdicaoTxt: { color: HUD.texto, fontSize: 12, fontWeight: "700" },
   centro: { alignItems: "center", justifyContent: "center", padding: 28, gap: 12 },
   avatarGrande: { width: 96, height: 96, borderRadius: 48, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" },
   iniciais: { fontSize: 34, fontWeight: "800", color: "#fff" },

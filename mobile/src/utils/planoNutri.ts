@@ -57,7 +57,12 @@ export async function restaurarEdicao(chave: string): Promise<Edicoes> {
 
 // ── Vínculo e prescrição, do lado do paciente ─────────────────────────────────
 
-export type VinculoNutri = { vinculoId?: string; nutricionista: { nome: string; crn: string }; prescricao: Edicoes };
+export type VinculoNutri = { vinculoId?: string; nutricionista: { nome: string; crn: string }; prescricao: Edicoes; metas?: MetasNutri };
+
+/** Metas combinadas na consulta. Vão dentro do JSON do plano, na chave "_metas". */
+export type MetasNutri = { kcal?: number; aguaMl?: number };
+export const metasDaPrescricao = (p: Edicoes): MetasNutri | undefined => (p as any)._metas;
+export const comMetas = (p: Edicoes, metas: MetasNutri): Edicoes => ({ ...p, _metas: metas } as unknown as Edicoes);
 
 function lerPrescricao(conteudo?: string | null): Edicoes {
   try {
@@ -91,6 +96,7 @@ export async function sincronizarVinculo(): Promise<VinculoNutri | null> {
       return null;
     }
     const resultado: VinculoNutri = { vinculoId: v.vinculoId, nutricionista: v.nutricionista, prescricao: lerPrescricao(v.plano?.conteudo) };
+    resultado.metas = metasDaPrescricao(resultado.prescricao);
     await AsyncStorage.setItem(CHAVE_VINCULO, JSON.stringify(resultado));
     return resultado;
   } catch {

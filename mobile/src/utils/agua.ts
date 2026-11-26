@@ -10,9 +10,9 @@ const chaveDoDia = () => {
   return `@geladeira:agua:${d.getFullYear()}-${mm}-${dd}`;
 };
 
-/** Soma um gole ao que a pessoa já bebeu hoje. */
-export async function registrarAgua(ml: number) {
-  const chave = chaveDoDia();
+/** Soma um gole ao que a pessoa bebeu hoje (ou no dia informado, "AAAA-MM-DD"). */
+export async function registrarAgua(ml: number, dia?: string) {
+  const chave = dia ? `@geladeira:agua:${dia}` : chaveDoDia();
   let lista: number[] = [];
   try {
     const bruto = await AsyncStorage.getItem(chave);
@@ -22,6 +22,6 @@ export async function registrarAgua(ml: number) {
     // começa uma lista nova
   }
   await gravarDia(chave, JSON.stringify([...lista, ml]));
-  registrarGoleAgora();
+  if (chave === chaveDoDia()) registrarGoleAgora();
   reagendarLembretes();
 }
